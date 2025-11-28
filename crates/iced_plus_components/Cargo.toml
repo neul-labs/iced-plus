@@ -1,0 +1,27 @@
+[package]
+name = "iced_plus_components"
+description = "Component library for iced-plus: Button, TextInput, Form, Modal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["button", "text", "input"]
+button = ["iced_plus_theme/button"]
+text = []
+input = ["iced_plus_theme/text-input"]
+form = ["input"]
+feedback = []
+modal = ["iced_plus_layouts/overlay"]
+full = ["button", "text", "input", "form", "feedback", "modal"]
+
+[dependencies]
+iced_plus_tokens = { workspace = true }
+iced_plus_theme = { workspace = true }
+iced_plus_layouts = { workspace = true }
+iced = { workspace = true }
+
+[lints]
+workspace = true

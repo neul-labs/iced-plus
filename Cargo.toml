@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/iced_plus_tokens",
+    "crates/iced_plus_theme",
+    "crates/iced_plus_layouts",
+    "crates/iced_plus_components",
+    "crates/iced_plus_platform",
+    "examples/kitchen_sink",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/user/iced-plus"
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Internal crates
+iced_plus_tokens = { path = "crates/iced_plus_tokens" }
+iced_plus_theme = { path = "crates/iced_plus_theme" }
+iced_plus_layouts = { path = "crates/iced_plus_layouts" }
+iced_plus_components = { path = "crates/iced_plus_components" }
+iced_plus_platform = { path = "crates/iced_plus_platform" }
+
+# External dependencies
+iced = { version = "0.13", features = ["advanced", "image", "canvas", "tokio"] }
+smallvec = { version = "1.13", features = ["union"] }
+ahash = "0.8"
+parking_lot = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"

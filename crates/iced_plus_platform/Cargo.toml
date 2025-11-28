@@ -1,0 +1,25 @@
+[package]
+name = "iced_plus_platform"
+description = "Desktop platform integration for iced-plus: tray, notifications, hotkeys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["tray", "notifications"]
+tray = []
+notifications = []
+hotkeys = []
+window = []
+audio = []
+recording = []
+webview = []
+full = ["tray", "notifications", "hotkeys", "window", "audio", "recording", "webview"]
+
+[dependencies]
+iced = { workspace = true }
+
+[lints]
+workspace = true

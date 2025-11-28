@@ -1,0 +1,25 @@
+[package]
+name = "iced_plus_theme"
+description = "Theme bridge for iced-plus: adapts tokens to iced's styling system"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["button", "text", "text-input", "container"]
+button = []
+text = []
+text-input = []
+container = []
+checkbox = []
+slider = []
+all-widgets = ["button", "text", "text-input", "container", "checkbox", "slider"]
+
+[dependencies]
+iced_plus_tokens = { workspace = true }
+iced = { workspace = true }
+
+[lints]
+workspace = true

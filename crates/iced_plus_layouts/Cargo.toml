@@ -1,0 +1,25 @@
+[package]
+name = "iced_plus_layouts"
+description = "Layout primitives for iced-plus: HStack, VStack, Split, AppShell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["stacks", "shell", "overlay", "responsive"]
+stacks = []
+shell = []
+overlay = []
+responsive = []
+split = []
+full = ["stacks", "shell", "overlay", "responsive", "split"]
+
+[dependencies]
+iced_plus_tokens = { workspace = true }
+iced = { workspace = true }
+smallvec = { workspace = true }
+
+[lints]
+workspace = true

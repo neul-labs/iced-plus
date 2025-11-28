@@ -1,0 +1,20 @@
+[package]
+name = "kitchen_sink"
+description = "Kitchen sink example demonstrating all iced-plus features"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+iced_plus_tokens = { workspace = true }
+iced_plus_theme = { workspace = true }
+iced_plus_layouts = { workspace = true }
+iced_plus_components = { workspace = true }
+iced_plus_platform = { workspace = true }
+iced = { workspace = true }
+
+[lints]
+workspace = true
