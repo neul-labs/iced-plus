@@ -2,8 +2,17 @@
 //!
 //! This example showcases the type-safe components and layouts from iced-plus.
 
+mod audio_backend;
+mod webcam_backend;
+mod webview_backend;
+
+use audio_backend::AudioPlayer;
+use webcam_backend::WebcamCapture;
+use webview_backend::WebViewWindow;
+
 use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Space};
-use iced::{alignment, Element, Length, Task, Theme};
+use iced::{alignment, Element, Length, Subscription, Task, Theme};
+use std::time::{Duration, Instant};
 
 use iced_plus_components::button::Button;
 use iced_plus_components::checkbox::Checkbox;
@@ -18,15 +27,19 @@ use iced_plus_components::select::Select;
 use iced_plus_components::slider::Slider;
 use iced_plus_components::tabs::{Tab, TabWidth, Tabs};
 use iced_plus_components::tooltip::{Tooltip, TooltipPosition};
+use iced_plus_components::textarea::{TextArea, TextAreaContent};
+use iced_plus_components::rich_text::{RichTextEditor, RichTextAction, RichTextContent};
 use iced_plus_components::{
     Alert, Avatar, AvatarShape, AvatarSize, Badge, Card, Elevation, Heading,
     ImagePlaceholder, Progress, Skeleton, Switch, Text, TextInput,
 };
+use iced::widget::text_editor;
 use iced_plus_layouts::{drawer, BreakpointTier, HStack, Modal, ResponsiveRow, VStack};
 
 /// Application entry point.
 pub fn main() -> iced::Result {
     iced::application("Kitchen Sink - iced-plus", App::update, App::view)
+        .subscription(App::subscription)
         .theme(App::theme)
         .run_with(App::new)
 }
@@ -100,9 +113,24 @@ struct App {
     media_player: MediaPlayerState,
     audio_recorder: RecorderState,
     video_recorder: RecorderState,
+    video_recording_start: Option<Instant>,
+    video_recorded_duration: Duration,
     // WebView state
     webview_state: WebViewState,
     url_input: String,
+    // TextArea and RichTextEditor state
+    textarea_content: TextAreaContent,
+    rich_text_content: RichTextContent,
+    // Real audio player
+    audio_player: Option<AudioPlayer>,
+    audio_playing: bool,
+    // Webcam capture
+    webcam: WebcamCapture,
+    webcam_frame: Option<iced::widget::image::Handle>,
+    webcam_error: Option<String>,
+    webcam_owned_by_video: bool,
+    // Real webview
+    webview_window: WebViewWindow,
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +184,18 @@ enum Message {
     // Color picker
     HexInputChanged(String),
     PaletteColorSelected(usize),
+    // TextArea and RichTextEditor
+    TextAreaAction(text_editor::Action),
+    RichTextAction(RichTextAction),
+    // Real audio player
+    PlayTestTone,
+    StopAudio,
+    // Webcam
+    StartWebcam,
+    StopWebcam,
+    WebcamFrame,
+    // Real webview
+    OpenWebView,
 }
 
 impl App {
@@ -190,8 +230,19 @@ impl App {
                 media_player,
                 audio_recorder: RecorderState::audio_only(),
                 video_recorder: RecorderState::new(),
+                video_recording_start: None,
+                video_recorded_duration: Duration::ZERO,
                 webview_state,
                 url_input: "https://example.com".to_string(),
+                textarea_content: TextAreaContent::with_text("This is a multi-line text area.\n\nYou can type here and it will grow as needed.\n\nTry editing this text!"),
+                rich_text_content: RichTextContent::with_text("# Rich Text Editor\n\nThis editor supports **bold**, *italic*, and other formatting.\n\n- Bullet lists\n- Are supported\n\nTry the toolbar buttons above!"),
+                audio_player: AudioPlayer::new().ok(),
+                audio_playing: false,
+                webcam: WebcamCapture::new(),
+                webcam_frame: None,
+                webcam_error: None,
+                webcam_owned_by_video: false,
+                webview_window: WebViewWindow::new(),
             },
             Task::none(),
         )
@@ -203,6 +254,20 @@ impl App {
         } else {
             Theme::Light
         }
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        let mut subscriptions = vec![];
+
+        // Webcam frame capture subscription (30 fps when running)
+        if self.webcam.is_running() {
+            subscriptions.push(
+                iced::time::every(Duration::from_millis(33))
+                    .map(|_| Message::WebcamFrame)
+            );
+        }
+
+        Subscription::batch(subscriptions)
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -246,10 +311,44 @@ impl App {
             Message::AudioRecordPause => self.audio_recorder.pause(),
             Message::AudioRecordResume => self.audio_recorder.resume(),
             // Video recorder
-            Message::VideoRecordStart => self.video_recorder.start(),
-            Message::VideoRecordStop => self.video_recorder.stop(),
-            Message::VideoRecordPause => self.video_recorder.pause(),
-            Message::VideoRecordResume => self.video_recorder.resume(),
+            Message::VideoRecordStart => {
+                match self.ensure_video_camera_running() {
+                    Ok(()) => {
+                        self.webcam_error = None;
+                        self.video_recorded_duration = Duration::ZERO;
+                        self.video_recording_start = Some(Instant::now());
+                        self.video_recorder.start();
+                    }
+                    Err(e) => {
+                        self.webcam_error = Some(e);
+                        self.video_recorder.error();
+                    }
+                }
+            }
+            Message::VideoRecordStop => {
+                self.finalize_video_duration();
+                self.video_recorder.stop();
+                self.video_recorder.finish();
+                self.reset_video_timers();
+                self.stop_camera_if_video_owned();
+            }
+            Message::VideoRecordPause => {
+                if let Some(start) = self.video_recording_start.take() {
+                    self.video_recorded_duration += start.elapsed();
+                }
+                self.video_recorder.pause();
+            }
+            Message::VideoRecordResume => {
+                if !self.webcam.is_running() {
+                    if let Err(e) = self.ensure_video_camera_running() {
+                        self.webcam_error = Some(e);
+                        self.video_recorder.error();
+                        return Task::none();
+                    }
+                }
+                self.video_recording_start = Some(Instant::now());
+                self.video_recorder.resume();
+            }
             Message::VideoToggleAudio => self.video_recorder.toggle_audio(),
             Message::VideoToggleVideo => self.video_recorder.toggle_video(),
             // WebView
@@ -297,6 +396,73 @@ impl App {
                 if let Some(&color) = presets::MATERIAL_PRIMARY.get(index) {
                     self.selected_color = color;
                     self.hex_input = color_to_hex(color);
+                }
+            }
+            // TextArea and RichTextEditor
+            Message::TextAreaAction(action) => {
+                self.textarea_content.perform(action);
+            }
+            Message::RichTextAction(action) => {
+                match action {
+                    RichTextAction::Edit(editor_action) => {
+                        self.rich_text_content.perform(editor_action);
+                    }
+                    _ => {
+                        // Handle other rich text actions (formatting, etc.)
+                        // For now, these are placeholder actions
+                    }
+                }
+            }
+            // Real audio player
+            Message::PlayTestTone => {
+                if let Some(ref player) = self.audio_player {
+                    player.play_test_tone(3);
+                    self.audio_playing = true;
+                }
+            }
+            Message::StopAudio => {
+                if let Some(ref player) = self.audio_player {
+                    player.stop();
+                    self.audio_playing = false;
+                }
+            }
+            // Webcam
+            Message::StartWebcam => match self.webcam.start() {
+                Ok(()) => {
+                    self.webcam_error = None;
+                    self.webcam_owned_by_video = false;
+                }
+                Err(e) => {
+                    self.webcam_error = Some(e);
+                }
+            },
+            Message::StopWebcam => {
+                self.webcam.stop();
+                self.webcam_frame = None;
+                self.webcam_owned_by_video = false;
+                if !self.video_recorder.can_start() {
+                    self.finalize_video_duration();
+                    self.video_recorder.stop();
+                    self.video_recorder.finish();
+                    self.reset_video_timers();
+                }
+            }
+            Message::WebcamFrame => {
+                if let Some((data, width, height)) = self.webcam.capture_frame() {
+                    self.webcam_frame =
+                        Some(iced::widget::image::Handle::from_rgba(width, height, data));
+                }
+                if self.video_recorder.is_recording() {
+                    let duration = self.current_video_duration();
+                    self.video_recorder.update_duration(duration);
+                }
+            }
+            // Real webview
+            Message::OpenWebView => {
+                if let Err(e) = self.webview_window.open(&self.url_input) {
+                    // Show error as toast
+                    self.toasts.push((self.toast_id_counter, e, ToastVariant::Error));
+                    self.toast_id_counter += 1;
                 }
             }
         }
@@ -748,6 +914,10 @@ impl App {
             .push(self.page_header("Inputs", "Form controls and user input"))
             .push(self.inputs_row())
             .push(horizontal_rule(1))
+            .push(self.textarea_section())
+            .push(horizontal_rule(1))
+            .push(self.rich_text_section())
+            .push(horizontal_rule(1))
             .push(self.checkboxes_switches_section())
             .push(horizontal_rule(1))
             .push(self.slider_section())
@@ -817,6 +987,41 @@ impl App {
                 "Selected: {}",
                 self.selected_option.map_or("None".to_string(), |o| o.to_string())
             )).muted())
+            .into()
+    }
+
+    fn textarea_section(&self) -> Element<'_, Message> {
+        let textarea: Element<'_, Message> = TextArea::new(&self.textarea_content)
+            .on_action(Message::TextAreaAction)
+            .placeholder("Type your multi-line text here...")
+            .height(Length::Fixed(150.0))
+            .into();
+
+        VStack::new()
+            .spacing(12.0)
+            .push(Heading::h2("Text Area"))
+            .push(Text::new("Multi-line text input for longer content").muted())
+            .push(textarea)
+            .push(Text::new(format!(
+                "Characters: {}",
+                self.textarea_content.text().len()
+            )).muted())
+            .into()
+    }
+
+    fn rich_text_section(&self) -> Element<'_, Message> {
+        let editor: Element<'_, Message> = RichTextEditor::new(&self.rich_text_content)
+            .on_action(Message::RichTextAction)
+            .placeholder("Start writing with formatting...")
+            .height(Length::Fixed(250.0))
+            .into();
+
+        VStack::new()
+            .spacing(12.0)
+            .push(Heading::h2("Rich Text Editor"))
+            .push(Text::new("Text editor with formatting toolbar").muted())
+            .push(editor)
+            .push(Text::new("Use the toolbar to format text (Bold, Italic, Lists, etc.)").muted())
             .into()
     }
 
@@ -1067,12 +1272,115 @@ impl App {
             .push(self.page_header("Media", "Images, audio, video, and recording"))
             .push(self.images_section())
             .push(horizontal_rule(1))
+            .push(self.real_audio_section())
+            .push(horizontal_rule(1))
+            .push(self.webcam_section())
+            .push(horizontal_rule(1))
             .push(self.audio_section())
             .push(horizontal_rule(1))
             .push(self.audio_recorder_section())
             .push(horizontal_rule(1))
             .push(self.video_recorder_section())
             .push(Space::with_height(32))
+            .into()
+    }
+
+    fn real_audio_section(&self) -> Element<'_, Message> {
+        let status = if self.audio_player.is_some() {
+            if self.audio_playing {
+                "Playing test tone..."
+            } else {
+                "Ready to play"
+            }
+        } else {
+            "Audio not available (build with --features audio)"
+        };
+
+        let play_btn = Button::primary("Play Test Tone")
+            .on_press(Message::PlayTestTone);
+        let stop_btn = Button::secondary("Stop")
+            .on_press(Message::StopAudio);
+
+        let controls: Element<'_, Message> = row![play_btn, stop_btn]
+            .spacing(12)
+            .into();
+
+        VStack::new()
+            .spacing(12.0)
+            .push(Heading::h2("Real Audio Playback"))
+            .push(Text::new("Uses rodio for actual audio output").muted())
+            .push(Card::new(
+                column![
+                    Text::new(status),
+                    Space::with_height(12),
+                    controls,
+                ]
+            ).fill_width().padding(16.0))
+            .into()
+    }
+
+    fn webcam_section(&self) -> Element<'_, Message> {
+        let (width, height) = self.webcam.resolution();
+
+        let preview: Element<'_, Message> = if let Some(ref handle) = self.webcam_frame {
+            iced::widget::image(handle.clone())
+                .width(Length::Fixed(width as f32))
+                .height(Length::Fixed(height as f32))
+                .into()
+        } else if let Some(ref error) = self.webcam_error {
+            container(
+                Text::new(format!("Error: {}", error)).muted()
+            )
+            .width(Length::Fixed(width as f32))
+            .height(Length::Fixed(height as f32))
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .style(|theme: &Theme| {
+                container::Style {
+                    background: Some(iced::Background::Color(theme.extended_palette().background.weak.color)),
+                    ..Default::default()
+                }
+            })
+            .into()
+        } else {
+            container(
+                Text::new(if self.webcam.is_running() { "Starting camera..." } else { "Camera not started" }).muted()
+            )
+            .width(Length::Fixed(width as f32))
+            .height(Length::Fixed(height as f32))
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .style(|theme: &Theme| {
+                container::Style {
+                    background: Some(iced::Background::Color(theme.extended_palette().background.weak.color)),
+                    ..Default::default()
+                }
+            })
+            .into()
+        };
+
+        let start_btn = Button::primary("Start Webcam")
+            .on_press(Message::StartWebcam);
+        let stop_btn = Button::secondary("Stop Webcam")
+            .on_press(Message::StopWebcam);
+        let capture_btn = Button::outline("Capture Frame")
+            .on_press(Message::WebcamFrame);
+
+        let controls: Element<'_, Message> = row![start_btn, stop_btn, capture_btn]
+            .spacing(12)
+            .into();
+
+        VStack::new()
+            .spacing(12.0)
+            .push(Heading::h2("Webcam"))
+            .push(Text::new("Uses nokhwa for camera capture (build with --features webcam)").muted())
+            .push(Card::new(
+                column![
+                    preview,
+                    Space::with_height(12),
+                    controls,
+                ]
+            ).fill_width().padding(16.0))
             .into()
     }
 
@@ -1187,10 +1495,44 @@ impl App {
             .on_reload(Message::WebViewReload)
             .into();
 
-        // Placeholder for webview content
+        // System browser launcher section
+        let webview_status = if self.webview_window.is_open() {
+            "URL opened in browser"
+        } else {
+            "Click 'Open in Browser' to launch system browser"
+        };
+
+        let open_webview_btn = Button::primary("Open in Browser")
+            .on_press(Message::OpenWebView);
+
+        let real_webview_section: Element<'_, Message> = Card::new(
+            column![
+                row![
+                    Icon::globe().size(24.0),
+                    Space::with_width(12),
+                    text("System Browser").size(18),
+                ]
+                .align_y(alignment::Vertical::Center),
+                Space::with_height(12),
+                text(format!("URL: {}", self.url_input)).size(14),
+                Space::with_height(8),
+                Text::new(webview_status).muted(),
+                Space::with_height(16),
+                open_webview_btn,
+                Space::with_height(8),
+                Text::new("Opens URL in your default browser").muted(),
+            ]
+            .spacing(4),
+        )
+        .elevation(Elevation::Medium)
+        .fill_width()
+        .padding(20.0)
+        .into();
+
+        // Placeholder for embedded webview content (future)
         let webview_placeholder: Element<'_, Message> = Card::new(
             column![
-                text("WebView Content Area").size(18),
+                text("Embedded WebView Content Area").size(18),
                 Space::with_height(8),
                 text(format!("URL: {}", self.webview_state.url)).size(14),
                 Space::with_height(4),
@@ -1201,25 +1543,73 @@ impl App {
                 })
                 .size(12),
                 Space::with_height(16),
-                text("Connect to platform WebView (wry, webkit2gtk, webview2)").size(11),
+                text("Note: Embedded webview requires platform integration").size(11),
             ]
             .spacing(4)
             .align_x(alignment::Horizontal::Center),
         )
         .elevation(Elevation::Low)
         .width(Length::Fill)
-        .height(Length::Fixed(400.0))
+        .height(Length::Fixed(300.0))
         .into();
 
         VStack::new()
             .spacing(16.0)
             .push(Heading::h2("Browser"))
-            .push(Text::new("WebView integration helpers").muted())
+            .push(Text::new("Browser integration and URL handling").muted())
             .push(url_bar)
+            .push(Heading::h3("Open in System Browser"))
+            .push(real_webview_section)
             .push(Heading::h3("BrowserBar Component"))
             .push(Card::new(browser_bar).fill_width().padding(8.0))
-            .push(Heading::h3("WebView Content"))
+            .push(Heading::h3("Embedded WebView (Future)"))
             .push(webview_placeholder)
             .into()
+    }
+
+    fn ensure_video_camera_running(&mut self) -> Result<(), String> {
+        if self.webcam.is_running() {
+            return Ok(());
+        }
+
+        match self.webcam.start() {
+            Ok(()) => {
+                self.webcam_owned_by_video = true;
+                Ok(())
+            }
+            Err(e) => {
+                self.webcam_owned_by_video = false;
+                Err(e)
+            }
+        }
+    }
+
+    fn stop_camera_if_video_owned(&mut self) {
+        if self.webcam_owned_by_video {
+            self.webcam.stop();
+            self.webcam_frame = None;
+            self.webcam_owned_by_video = false;
+        }
+    }
+
+    fn finalize_video_duration(&mut self) {
+        if let Some(start) = self.video_recording_start.take() {
+            self.video_recorded_duration += start.elapsed();
+        }
+        self.video_recorder
+            .update_duration(self.video_recorded_duration);
+    }
+
+    fn reset_video_timers(&mut self) {
+        self.video_recorded_duration = Duration::ZERO;
+        self.video_recording_start = None;
+    }
+
+    fn current_video_duration(&self) -> Duration {
+        if let Some(start) = self.video_recording_start {
+            self.video_recorded_duration + start.elapsed()
+        } else {
+            self.video_recorded_duration
+        }
     }
 }

@@ -13,8 +13,20 @@ iced_plus_tokens = { workspace = true }
 iced_plus_theme = { workspace = true }
 iced_plus_layouts = { workspace = true }
 iced_plus_components = { workspace = true }
-iced_plus_platform = { workspace = true }
+iced_plus_platform = { workspace = true, features = ["audio", "recording", "webview"] }
 iced = { workspace = true }
+
+# Real backend integrations
+rodio = { version = "0.19", optional = true }
+nokhwa = { version = "0.10", features = ["input-native"], optional = true }
+wry = { version = "0.43", optional = true }
+tao = { version = "0.29", optional = true }
+
+[features]
+default = ["audio", "webcam"]
+audio = ["rodio"]
+webcam = ["nokhwa"]
+webview = ["wry", "tao"]
 
 [lints]
 workspace = true
