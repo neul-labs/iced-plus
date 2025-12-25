@@ -12,6 +12,8 @@ use webview_backend::WebViewWindow;
 
 use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Space};
 use iced::{alignment, Element, Length, Subscription, Task, Theme};
+#[cfg(feature = "webview")]
+use iced::{window, Background, Rectangle};
 use std::time::{Duration, Instant};
 
 use iced_plus_components::button::Button;
@@ -35,6 +37,14 @@ use iced_plus_components::{
 };
 use iced::widget::text_editor;
 use iced_plus_layouts::{drawer, BreakpointTier, HStack, Modal, ResponsiveRow, VStack};
+
+#[cfg(feature = "webview")]
+use raw_window_handle::{HandleError, HasWindowHandle, RawWindowHandle, WindowHandle};
+#[cfg(feature = "webview")]
+use wry::{
+    dpi::{LogicalPosition, LogicalSize},
+    Rect as WebViewRect, WebView, WebViewBuilder,
+};
 
 /// Application entry point.
 pub fn main() -> iced::Result {
@@ -63,6 +73,75 @@ impl std::fmt::Display for Page {
             Self::Media => write!(f, "Media"),
             Self::WebView => write!(f, "WebView"),
         }
+    }
+}
+
+#[cfg(feature = "webview")]
+#[derive(Debug, Clone)]
+struct OwnedWindowHandle {
+    raw: RawWindowHandle,
+}
+
+#[cfg(feature = "webview")]
+unsafe impl Send for OwnedWindowHandle {}
+
+#[cfg(feature = "webview")]
+unsafe impl Sync for OwnedWindowHandle {}
+
+#[cfg(feature = "webview")]
+impl OwnedWindowHandle {
+    fn from(handle: WindowHandle<'_>) -> Self {
+        Self { raw: handle.as_raw() }
+    }
+}
+
+#[cfg(feature = "webview")]
+impl HasWindowHandle for OwnedWindowHandle {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        unsafe { Ok(WindowHandle::borrow_raw(self.raw.clone())) }
+    }
+}
+
+#[cfg(feature = "webview")]
+struct EmbeddedWebView {
+    inner: WebView,
+}
+
+#[cfg(feature = "webview")]
+impl EmbeddedWebView {
+    fn new(
+        parent: &OwnedWindowHandle,
+        bounds: Rectangle,
+        scale: f32,
+        url: &str,
+    ) -> Result<Self, String> {
+        WebViewBuilder::new_as_child(parent)
+            .with_bounds(rect_from_bounds(bounds, scale))
+            .with_url(url)
+            .build()
+            .map(|inner| Self { inner })
+            .map_err(|e| e.to_string())
+    }
+
+    fn set_bounds(&self, bounds: Rectangle, scale: f32) -> Result<(), String> {
+        self.inner
+            .set_bounds(rect_from_bounds(bounds, scale))
+            .map_err(|e| e.to_string())
+    }
+
+    fn load_url(&self, url: &str) -> Result<(), String> {
+        self.inner.load_url(url).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(feature = "webview")]
+fn rect_from_bounds(bounds: Rectangle, _scale: f32) -> WebViewRect {
+    let position = LogicalPosition::new(bounds.x as f64, bounds.y as f64);
+    let size = LogicalSize::new(bounds.width as f64, bounds.height as f64);
+
+    WebViewRect {
+        position: position.into(),
+        size: size.into(),
     }
 }
 
@@ -118,6 +197,20 @@ struct App {
     // WebView state
     webview_state: WebViewState,
     url_input: String,
+    #[cfg(feature = "webview")]
+    window_id: Option<window::Id>,
+    #[cfg(feature = "webview")]
+    window_handle: Option<OwnedWindowHandle>,
+    #[cfg(feature = "webview")]
+    embedded_webview: Option<EmbeddedWebView>,
+    #[cfg(feature = "webview")]
+    embedded_webview_error: Option<String>,
+    #[cfg(feature = "webview")]
+    webview_bounds: Option<Rectangle>,
+    #[cfg(feature = "webview")]
+    webview_container_id: container::Id,
+    #[cfg(feature = "webview")]
+    scale_factor: f32,
     // TextArea and RichTextEditor state
     textarea_content: TextAreaContent,
     rich_text_content: RichTextContent,
@@ -176,6 +269,16 @@ enum Message {
     WebViewBack,
     WebViewForward,
     WebViewReload,
+    #[cfg(feature = "webview")]
+    WindowOpened(window::Id),
+    #[cfg(feature = "webview")]
+    WindowResized(window::Id),
+    #[cfg(feature = "webview")]
+    WindowHandleReady(OwnedWindowHandle),
+    #[cfg(feature = "webview")]
+    WebViewBoundsMeasured(Option<Rectangle>),
+    #[cfg(feature = "webview")]
+    WindowScaleFactor(f32),
     // Spinners
     SpinnerTick,
     // Toasts
@@ -234,6 +337,20 @@ impl App {
                 video_recorded_duration: Duration::ZERO,
                 webview_state,
                 url_input: "https://example.com".to_string(),
+                #[cfg(feature = "webview")]
+                window_id: None,
+                #[cfg(feature = "webview")]
+                window_handle: None,
+                #[cfg(feature = "webview")]
+                embedded_webview: None,
+                #[cfg(feature = "webview")]
+                embedded_webview_error: None,
+                #[cfg(feature = "webview")]
+                webview_bounds: None,
+                #[cfg(feature = "webview")]
+                webview_container_id: container::Id::unique(),
+                #[cfg(feature = "webview")]
+                scale_factor: 1.0,
                 textarea_content: TextAreaContent::with_text("This is a multi-line text area.\n\nYou can type here and it will grow as needed.\n\nTry editing this text!"),
                 rich_text_content: RichTextContent::with_text("# Rich Text Editor\n\nThis editor supports **bold**, *italic*, and other formatting.\n\n- Bullet lists\n- Are supported\n\nTry the toolbar buttons above!"),
                 audio_player: AudioPlayer::new().ok(),
@@ -267,7 +384,74 @@ impl App {
             );
         }
 
+        #[cfg(feature = "webview")]
+        {
+            subscriptions.push(
+                window::open_events().map(Message::WindowOpened)
+            );
+            subscriptions.push(
+                window::resize_events().map(|(id, _)| Message::WindowResized(id))
+            );
+        }
+
         Subscription::batch(subscriptions)
+    }
+
+    #[cfg(feature = "webview")]
+    fn measure_webview_bounds_task(&self) -> Task<Message> {
+        if self.current_page != Page::WebView {
+            return Task::none();
+        }
+
+        container::visible_bounds(self.webview_container_id.clone())
+            .map(Message::WebViewBoundsMeasured)
+    }
+
+    #[cfg(feature = "webview")]
+    fn ensure_embedded_webview(&mut self) {
+        if self.current_page != Page::WebView {
+            return;
+        }
+
+        if self.embedded_webview.is_none() {
+            if let (Some(handle), Some(bounds)) =
+                (self.window_handle.as_ref(), self.webview_bounds)
+            {
+                match EmbeddedWebView::new(handle, bounds, self.scale_factor, &self.webview_state.url) {
+                    Ok(webview) => {
+                        self.embedded_webview = Some(webview);
+                        self.embedded_webview_error = None;
+                    }
+                    Err(err) => {
+                        self.embedded_webview_error = Some(err);
+                    }
+                }
+            }
+        } else {
+            self.update_embedded_webview_bounds();
+        }
+    }
+
+    #[cfg(feature = "webview")]
+    fn update_embedded_webview_bounds(&mut self) {
+        if let (Some(bounds), Some(view)) = (self.webview_bounds, self.embedded_webview.as_ref()) {
+            if let Err(err) = view.set_bounds(bounds, self.scale_factor) {
+                self.embedded_webview_error = Some(err);
+            } else {
+                self.embedded_webview_error = None;
+            }
+        }
+    }
+
+    #[cfg(feature = "webview")]
+    fn navigate_embedded_webview(&mut self) {
+        if let Some(view) = self.embedded_webview.as_ref() {
+            if let Err(err) = view.load_url(&self.url_input) {
+                self.embedded_webview_error = Some(err);
+            } else {
+                self.embedded_webview_error = None;
+            }
+        }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -276,6 +460,10 @@ impl App {
             Message::NavigateTo(page) => {
                 self.current_page = page;
                 self.show_drawer = false;
+                #[cfg(feature = "webview")]
+                if self.current_page == Page::WebView {
+                    return self.measure_webview_bounds_task();
+                }
             }
             Message::ToggleDrawer => self.show_drawer = !self.show_drawer,
             Message::OpenModal => self.show_modal = true,
@@ -356,6 +544,8 @@ impl App {
             Message::WebViewNavigate => {
                 self.webview_state.set_url(&self.url_input);
                 self.webview_state.set_loading(true);
+                #[cfg(feature = "webview")]
+                self.navigate_embedded_webview();
             }
             Message::WebViewBack => {
                 self.webview_state.can_go_back = false;
@@ -365,6 +555,44 @@ impl App {
             }
             Message::WebViewReload => {
                 self.webview_state.set_loading(true);
+                #[cfg(feature = "webview")]
+                self.navigate_embedded_webview();
+            }
+            #[cfg(feature = "webview")]
+            Message::WindowOpened(id) => {
+                self.window_id = Some(id);
+                let tasks = vec![
+                    window::run_with_handle(id, |handle| OwnedWindowHandle::from(handle))
+                        .map(Message::WindowHandleReady),
+                    window::get_scale_factor(id).map(Message::WindowScaleFactor),
+                    self.measure_webview_bounds_task(),
+                ];
+                return Task::batch(tasks);
+            }
+            #[cfg(feature = "webview")]
+            Message::WindowResized(id) => {
+                if self.window_id == Some(id) {
+                    let tasks = vec![
+                        self.measure_webview_bounds_task(),
+                        window::get_scale_factor(id).map(Message::WindowScaleFactor),
+                    ];
+                    return Task::batch(tasks);
+                }
+            }
+            #[cfg(feature = "webview")]
+            Message::WindowHandleReady(handle) => {
+                self.window_handle = Some(handle);
+                self.ensure_embedded_webview();
+            }
+            #[cfg(feature = "webview")]
+            Message::WebViewBoundsMeasured(bounds) => {
+                self.webview_bounds = bounds;
+                self.ensure_embedded_webview();
+            }
+            #[cfg(feature = "webview")]
+            Message::WindowScaleFactor(scale) => {
+                self.scale_factor = scale;
+                self.update_embedded_webview_bounds();
             }
             // Spinners
             Message::SpinnerTick => {
@@ -1529,29 +1757,7 @@ impl App {
         .padding(20.0)
         .into();
 
-        // Placeholder for embedded webview content (future)
-        let webview_placeholder: Element<'_, Message> = Card::new(
-            column![
-                text("Embedded WebView Content Area").size(18),
-                Space::with_height(8),
-                text(format!("URL: {}", self.webview_state.url)).size(14),
-                Space::with_height(4),
-                text(if self.webview_state.loading {
-                    "Status: Loading..."
-                } else {
-                    "Status: Ready"
-                })
-                .size(12),
-                Space::with_height(16),
-                text("Note: Embedded webview requires platform integration").size(11),
-            ]
-            .spacing(4)
-            .align_x(alignment::Horizontal::Center),
-        )
-        .elevation(Elevation::Low)
-        .width(Length::Fill)
-        .height(Length::Fixed(300.0))
-        .into();
+        let embedded_area = self.embedded_webview_area();
 
         VStack::new()
             .spacing(16.0)
@@ -1562,9 +1768,63 @@ impl App {
             .push(real_webview_section)
             .push(Heading::h3("BrowserBar Component"))
             .push(Card::new(browser_bar).fill_width().padding(8.0))
-            .push(Heading::h3("Embedded WebView (Future)"))
-            .push(webview_placeholder)
+            .push(Heading::h3("Embedded WebView (Preview)"))
+            .push(embedded_area)
             .into()
+    }
+
+    #[cfg(feature = "webview")]
+    fn embedded_webview_area(&self) -> Element<'_, Message> {
+        let status_text: Element<'_, Message> = if let Some(err) =
+            &self.embedded_webview_error
+        {
+            Text::new(format!("Error starting webview: {err}")).into()
+        } else if self.embedded_webview.is_some() {
+            Text::new("Embedded webview is active").into()
+        } else {
+            Text::new("Initializing embedded webview...").muted().into()
+        };
+
+        container(
+            column![
+                Text::new(format!("URL: {}", self.webview_state.url)).size(14.0),
+                Space::with_height(8),
+                status_text,
+                Space::with_height(8),
+                Text::new("The native webview renders directly into this region.")
+                    .size(11.0)
+                    .muted(),
+            ]
+            .spacing(4)
+        )
+        .width(Length::Fill)
+        .height(Length::Fixed(300.0))
+        .padding(12)
+        .style(|_| container::Style {
+            background: Some(Background::Color(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
+            ..Default::default()
+        })
+        .id(self.webview_container_id.clone())
+        .into()
+    }
+
+    #[cfg(not(feature = "webview"))]
+    fn embedded_webview_area(&self) -> Element<'_, Message> {
+        Card::new(
+            column![
+                Text::new("Embedded WebView Content Area").size(18.0),
+                Space::with_height(8),
+                Text::new("Enable the `webview` feature to embed a real browser surface.")
+                    .size(12.0)
+                    .muted(),
+            ]
+            .spacing(4)
+            .align_x(alignment::Horizontal::Center),
+        )
+        .elevation(Elevation::Low)
+        .width(Length::Fill)
+        .height(Length::Fixed(300.0))
+        .into()
     }
 
     fn ensure_video_camera_running(&mut self) -> Result<(), String> {
