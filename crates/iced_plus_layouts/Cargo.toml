@@ -1,11 +1,16 @@
 [package]
 name = "iced_plus_layouts"
 description = "Layout primitives for iced-plus: HStack, VStack, Split, AppShell"
-version.workspace = true
+categories = ["gui", "graphics"]
+documentation = "https://docs.neullabs.com/iced-plus"
 edition.workspace = true
+homepage = "https://docs.neullabs.com/iced-plus"
+keywords = ["iced", "layout", "ui", "gui", "widgets"]
 license.workspace = true
+readme = "../../README.md"
 repository.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [features]
 default = ["stacks", "shell", "overlay", "responsive"]

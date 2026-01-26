@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/iced_plus",
     "crates/iced_plus_tokens",
     "crates/iced_plus_theme",
     "crates/iced_plus_layouts",
@@ -12,17 +13,18 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/user/iced-plus"
+license = "MIT"
+repository = "https://github.com/neul-labs/iced-plus"
 rust-version = "1.75"
 
 [workspace.dependencies]
 # Internal crates
-iced_plus_tokens = { path = "crates/iced_plus_tokens" }
-iced_plus_theme = { path = "crates/iced_plus_theme" }
-iced_plus_layouts = { path = "crates/iced_plus_layouts" }
-iced_plus_components = { path = "crates/iced_plus_components" }
-iced_plus_platform = { path = "crates/iced_plus_platform" }
+iced_plus = { version = "0.1.0", path = "crates/iced_plus" }
+iced_plus_tokens = { version = "0.1.0", path = "crates/iced_plus_tokens" }
+iced_plus_theme = { version = "0.1.0", path = "crates/iced_plus_theme" }
+iced_plus_layouts = { version = "0.1.0", path = "crates/iced_plus_layouts" }
+iced_plus_components = { version = "0.1.0", path = "crates/iced_plus_components" }
+iced_plus_platform = { version = "0.1.0", path = "crates/iced_plus_platform" }
 
 # External dependencies
 iced = { version = "0.13", features = ["advanced", "image", "canvas", "tokio"] }

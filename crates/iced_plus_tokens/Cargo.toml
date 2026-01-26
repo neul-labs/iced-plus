@@ -1,11 +1,16 @@
 [package]
 name = "iced_plus_tokens"
 description = "Design tokens for iced-plus: colors, typography, spacing, elevation, and motion"
-version.workspace = true
+categories = ["gui", "graphics"]
+documentation = "https://docs.neullabs.com/iced-plus"
 edition.workspace = true
+homepage = "https://docs.neullabs.com/iced-plus"
+keywords = ["iced", "design-tokens", "theming", "ui", "gui"]
 license.workspace = true
+readme = "../../README.md"
 repository.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [features]
 default = ["preset-light", "preset-dark"]

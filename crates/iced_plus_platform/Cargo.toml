@@ -1,11 +1,16 @@
 [package]
 name = "iced_plus_platform"
-description = "Desktop platform integration for iced-plus: tray, notifications, hotkeys"
-version.workspace = true
+description = "Desktop platform integration for iced-plus: tray, notifications, hotkeys, window management"
+categories = ["gui", "os"]
+documentation = "https://docs.neullabs.com/iced-plus"
 edition.workspace = true
+homepage = "https://docs.neullabs.com/iced-plus"
+keywords = ["iced", "desktop", "platform", "tray", "notifications"]
 license.workspace = true
+readme = "../../README.md"
 repository.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [features]
 default = ["tray", "notifications"]

@@ -1,0 +1,32 @@
+[package]
+name = "iced_plus"
+description = "An opinionated companion toolkit for building desktop apps with iced"
+categories = ["gui", "graphics", "rendering"]
+documentation = "https://docs.neullabs.com/iced-plus"
+edition.workspace = true
+homepage = "https://docs.neullabs.com/iced-plus"
+keywords = ["iced", "gui", "desktop", "ui", "widgets"]
+license.workspace = true
+readme = "../../README.md"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[features]
+default = ["tokens", "theme", "layouts", "components"]
+full = ["tokens", "theme", "layouts", "components", "platform"]
+tokens = ["dep:iced_plus_tokens"]
+theme = ["dep:iced_plus_theme", "tokens"]
+layouts = ["dep:iced_plus_layouts"]
+components = ["dep:iced_plus_components", "theme", "layouts"]
+platform = ["dep:iced_plus_platform"]
+
+[dependencies]
+iced_plus_tokens = { workspace = true, optional = true }
+iced_plus_theme = { workspace = true, optional = true }
+iced_plus_layouts = { workspace = true, optional = true }
+iced_plus_components = { workspace = true, optional = true }
+iced_plus_platform = { workspace = true, optional = true }
+
+[lints]
+workspace = true

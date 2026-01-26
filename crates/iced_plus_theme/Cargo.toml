@@ -1,11 +1,16 @@
 [package]
 name = "iced_plus_theme"
 description = "Theme bridge for iced-plus: adapts tokens to iced's styling system"
-version.workspace = true
+categories = ["gui", "graphics"]
+documentation = "https://docs.neullabs.com/iced-plus"
 edition.workspace = true
+homepage = "https://docs.neullabs.com/iced-plus"
+keywords = ["iced", "theme", "styling", "ui", "gui"]
 license.workspace = true
+readme = "../../README.md"
 repository.workspace = true
 rust-version.workspace = true
+version.workspace = true
 
 [features]
 default = ["button", "text", "text-input", "container"]
