@@ -1,12 +1,14 @@
 # iced-plus
 
+**Batteries included for [iced](https://github.com/iced-rs/iced).**
+
 [![Crates.io](https://img.shields.io/crates/v/iced_plus.svg)](https://crates.io/crates/iced_plus)
 [![Documentation](https://docs.rs/iced_plus/badge.svg)](https://docs.rs/iced_plus)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust Version](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![CI](https://github.com/neul-labs/iced-plus/actions/workflows/ci.yml/badge.svg)](https://github.com/neul-labs/iced-plus/actions/workflows/ci.yml)
 
-An opinionated companion toolkit for building ambitious desktop apps with [iced](https://github.com/iced-rs/iced). The goal is to make iced feel like a complete framework by pairing it with batteries that cover real-world desktop needs—cohesive styling primitives, scalable layouts, pre-built widgets, and consistent system integration.
+Production-ready design tokens, layouts, components, and platform APIs that turn iced into a complete desktop framework. Ship polished apps faster with 30+ pre-built widgets, consistent theming, and cross-platform system integration.
 
 ## Features
 
