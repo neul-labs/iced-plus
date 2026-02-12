@@ -942,12 +942,17 @@ impl App {
             Page::WebView => self.webview_page(),
         };
 
+        let page_shell = container(page_content)
+            .padding(24)
+            .width(Length::Fill)
+            .max_width(1200);
+
         let scrollable_content = scrollable(
-            container(page_content)
-                .padding(24)
+            container(page_shell)
                 .width(Length::Fill)
-                .max_width(1200),
+                .center_x(Length::Fill),
         )
+        .width(Length::Fill)
         .height(Length::Fill);
 
         let main_content: Element<'_, Message> = column![app_bar, scrollable_content,].into();
