@@ -1,12 +1,8 @@
 //! Aggregate theme tokens structure.
 
 use crate::{
-    color::ColorPalette,
-    elevation::ElevationScale,
-    motion::MotionScale,
-    radius::RadiusScale,
-    spacing::SpacingScale,
-    typography::TypographyScale,
+    color::ColorPalette, elevation::ElevationScale, motion::MotionScale, radius::RadiusScale,
+    spacing::SpacingScale, typography::TypographyScale,
 };
 
 #[cfg(feature = "serde")]

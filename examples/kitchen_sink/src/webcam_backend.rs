@@ -69,8 +69,7 @@ pub mod backend {
                     };
 
                     if let Err(err) = camera.open_stream() {
-                        let _ =
-                            ready_tx.send(Err(format!("Failed to start camera stream: {err}")));
+                        let _ = ready_tx.send(Err(format!("Failed to start camera stream: {err}")));
                         return;
                     }
 
@@ -88,11 +87,15 @@ pub mod backend {
                                     let mut rgba_bytes =
                                         Vec::with_capacity((width * height * 4) as usize);
                                     for chunk in rgb_bytes.chunks(3) {
-                                        rgba_bytes
-                                            .extend_from_slice(&[chunk[0], chunk[1], chunk[2], 255]);
+                                        rgba_bytes.extend_from_slice(&[
+                                            chunk[0], chunk[1], chunk[2], 255,
+                                        ]);
                                     }
-                                    *frame_store.lock().unwrap() =
-                                        Some(FrameData { data: rgba_bytes, width, height });
+                                    *frame_store.lock().unwrap() = Some(FrameData {
+                                        data: rgba_bytes,
+                                        width,
+                                        height,
+                                    });
                                 }
                             }
                             Err(_) => thread::sleep(Duration::from_millis(10)),

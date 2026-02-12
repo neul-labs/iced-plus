@@ -138,11 +138,8 @@ impl<'a, Message: 'a> From<Alert<'a>> for Element<'a, Message, iced::Theme> {
         let mut content_row = row![].spacing(8);
 
         if alert.show_icon {
-            content_row = content_row.push(
-                text(alert.alert_type.icon())
-                    .size(16)
-                    .color(border_color),
-            );
+            content_row =
+                content_row.push(text(alert.alert_type.icon()).size(16).color(border_color));
         }
 
         let text_content = if let Some(title) = alert.title {

@@ -105,7 +105,11 @@ impl<'a, Message> TrayMenu<'a, Message> {
 
     /// Add a submenu.
     #[must_use]
-    pub fn submenu(mut self, label: impl Into<Cow<'a, str>>, submenu: TrayMenu<'a, Message>) -> Self {
+    pub fn submenu(
+        mut self,
+        label: impl Into<Cow<'a, str>>,
+        submenu: TrayMenu<'a, Message>,
+    ) -> Self {
         self.items.push(TrayMenuItem::Submenu {
             label: label.into(),
             menu: submenu,

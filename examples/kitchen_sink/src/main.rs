@@ -10,32 +10,38 @@ use audio_backend::AudioPlayer;
 use webcam_backend::WebcamCapture;
 use webview_backend::WebViewWindow;
 
+use iced::keyboard::{self, key, Key, Modifiers};
 use iced::widget::{column, container, horizontal_rule, row, scrollable, text, Space};
 use iced::{alignment, Element, Length, Subscription, Task, Theme};
 #[cfg(feature = "webview")]
 use iced::{window, Background, Rectangle};
 use std::time::{Duration, Instant};
 
+use iced::widget::text_editor;
 use iced_plus_components::button::Button;
 use iced_plus_components::checkbox::Checkbox;
-use iced_plus_components::color_picker::{color_palette, color_picker_view, color_to_hex, presets, ColorSwatch};
-use iced_plus_components::{Icon, IconName};
-use iced_plus_components::media::{AudioControls, AudioRecorder, MediaPlayerState, RecorderState, VideoRecorder};
-use iced_plus_components::spinner::{CircularSpinner, DotsSpinner, LinearSpinner, PulseSpinner};
-use iced_plus_components::toast::{toast_container, ToastPosition, ToastVariant};
-use iced_plus_components::webview::{BrowserBar, WebViewState};
+use iced_plus_components::color_picker::{
+    color_palette, color_picker_view, color_to_hex, presets, ColorSwatch,
+};
+use iced_plus_components::media::{
+    AudioControls, AudioRecorder, MediaPlayerState, PlaybackState, RecorderState, RecordingState,
+    VideoRecorder,
+};
 use iced_plus_components::navbar::{AppBar, NavItem, SideNav};
+use iced_plus_components::rich_text::{RichTextAction, RichTextContent, RichTextEditor};
 use iced_plus_components::select::Select;
 use iced_plus_components::slider::Slider;
+use iced_plus_components::spinner::{CircularSpinner, DotsSpinner, LinearSpinner, PulseSpinner};
 use iced_plus_components::tabs::{Tab, TabWidth, Tabs};
-use iced_plus_components::tooltip::{Tooltip, TooltipPosition};
 use iced_plus_components::textarea::{TextArea, TextAreaContent};
-use iced_plus_components::rich_text::{RichTextEditor, RichTextAction, RichTextContent};
+use iced_plus_components::toast::{toast_container, ToastPosition, ToastVariant};
+use iced_plus_components::tooltip::{Tooltip, TooltipPosition};
+use iced_plus_components::webview::{BrowserBar, WebViewState};
 use iced_plus_components::{
-    Alert, Avatar, AvatarShape, AvatarSize, Badge, Card, Elevation, Heading,
+    Alert, Avatar, AvatarShape, AvatarSize, Badge, Card, Elevation, Heading, Image,
     ImagePlaceholder, Progress, Skeleton, Switch, Text, TextInput,
 };
-use iced::widget::text_editor;
+use iced_plus_components::{Icon, IconName};
 use iced_plus_layouts::{drawer, BreakpointTier, HStack, Modal, ResponsiveRow, VStack};
 
 #[cfg(feature = "webview")]
@@ -91,7 +97,9 @@ unsafe impl Sync for OwnedWindowHandle {}
 #[cfg(feature = "webview")]
 impl OwnedWindowHandle {
     fn from(handle: WindowHandle<'_>) -> Self {
-        Self { raw: handle.as_raw() }
+        Self {
+            raw: handle.as_raw(),
+        }
     }
 }
 
@@ -191,6 +199,8 @@ struct App {
     // Media state
     media_player: MediaPlayerState,
     audio_recorder: RecorderState,
+    audio_recording_start: Option<Instant>,
+    audio_recorded_duration: Duration,
     video_recorder: RecorderState,
     video_recording_start: Option<Instant>,
     video_recorded_duration: Duration,
@@ -220,6 +230,7 @@ struct App {
     // Webcam capture
     webcam: WebcamCapture,
     webcam_frame: Option<iced::widget::image::Handle>,
+    demo_image: iced::widget::image::Handle,
     webcam_error: Option<String>,
     webcam_owned_by_video: bool,
     // Real webview
@@ -251,6 +262,10 @@ enum Message {
     MediaPause,
     MediaSeek(f32),
     MediaVolume(f32),
+    MediaStop,
+    MediaMute,
+    MediaTick,
+    MediaHotkey(MediaHotkey),
     // Audio recorder
     AudioRecordStart,
     AudioRecordStop,
@@ -301,6 +316,23 @@ enum Message {
     OpenWebView,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum MediaHotkey {
+    TogglePlayPause,
+    StopPlayback,
+    ToggleMute,
+    SeekBackward,
+    SeekForward,
+    VolumeDown,
+    VolumeUp,
+    ToggleWebcam,
+    CaptureFrame,
+    ToggleAudioRecording,
+    ToggleAudioPause,
+    ToggleVideoRecording,
+    ToggleVideoPause,
+}
+
 impl App {
     fn new() -> (Self, Task<Message>) {
         let mut media_player = MediaPlayerState::new();
@@ -332,6 +364,8 @@ impl App {
                 palette_index: None,
                 media_player,
                 audio_recorder: RecorderState::audio_only(),
+                audio_recording_start: None,
+                audio_recorded_duration: Duration::ZERO,
                 video_recorder: RecorderState::new(),
                 video_recording_start: None,
                 video_recorded_duration: Duration::ZERO,
@@ -357,6 +391,7 @@ impl App {
                 audio_playing: false,
                 webcam: WebcamCapture::new(),
                 webcam_frame: None,
+                demo_image: Self::generate_demo_image(320, 180),
                 webcam_error: None,
                 webcam_owned_by_video: false,
                 webview_window: WebViewWindow::new(),
@@ -376,25 +411,87 @@ impl App {
     fn subscription(&self) -> Subscription<Message> {
         let mut subscriptions = vec![];
 
+        subscriptions.push(keyboard::on_key_press(Self::media_hotkey));
+
         // Webcam frame capture subscription (30 fps when running)
         if self.webcam.is_running() {
-            subscriptions.push(
-                iced::time::every(Duration::from_millis(33))
-                    .map(|_| Message::WebcamFrame)
-            );
+            subscriptions
+                .push(iced::time::every(Duration::from_millis(33)).map(|_| Message::WebcamFrame));
+        }
+
+        if self.audio_playing
+            || self.audio_recorder.is_recording()
+            || self.video_recorder.is_recording()
+        {
+            subscriptions
+                .push(iced::time::every(Duration::from_millis(100)).map(|_| Message::MediaTick));
         }
 
         #[cfg(feature = "webview")]
         {
-            subscriptions.push(
-                window::open_events().map(Message::WindowOpened)
-            );
-            subscriptions.push(
-                window::resize_events().map(|(id, _)| Message::WindowResized(id))
-            );
+            subscriptions.push(window::open_events().map(Message::WindowOpened));
+            subscriptions.push(window::resize_events().map(|(id, _)| Message::WindowResized(id)));
         }
 
         Subscription::batch(subscriptions)
+    }
+
+    fn media_hotkey(key: Key, modifiers: Modifiers) -> Option<Message> {
+        if modifiers.command() || modifiers.control() || modifiers.alt() {
+            return None;
+        }
+
+        let shift = modifiers.shift();
+
+        let hotkey = match key.as_ref() {
+            Key::Named(key::Named::Space) => MediaHotkey::TogglePlayPause,
+            Key::Named(key::Named::ArrowLeft) => MediaHotkey::SeekBackward,
+            Key::Named(key::Named::ArrowRight) => MediaHotkey::SeekForward,
+            Key::Named(key::Named::ArrowDown) => MediaHotkey::VolumeDown,
+            Key::Named(key::Named::ArrowUp) => MediaHotkey::VolumeUp,
+            Key::Character("k") | Key::Character("K") => MediaHotkey::TogglePlayPause,
+            Key::Character("m") | Key::Character("M") => MediaHotkey::ToggleMute,
+            Key::Character("x") | Key::Character("X") => MediaHotkey::StopPlayback,
+            Key::Character("w") | Key::Character("W") => MediaHotkey::ToggleWebcam,
+            Key::Character("c") | Key::Character("C") => MediaHotkey::CaptureFrame,
+            Key::Character("r") | Key::Character("R") => {
+                if shift {
+                    MediaHotkey::ToggleAudioPause
+                } else {
+                    MediaHotkey::ToggleAudioRecording
+                }
+            }
+            Key::Character("v") | Key::Character("V") => {
+                if shift {
+                    MediaHotkey::ToggleVideoPause
+                } else {
+                    MediaHotkey::ToggleVideoRecording
+                }
+            }
+            _ => return None,
+        };
+
+        Some(Message::MediaHotkey(hotkey))
+    }
+
+    fn generate_demo_image(width: u32, height: u32) -> iced::widget::image::Handle {
+        let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+
+        for y in 0..height {
+            for x in 0..width {
+                let fx = x as f32 / width as f32;
+                let fy = y as f32 / height as f32;
+                let checker = ((x / 16) + (y / 16)) % 2;
+
+                let r = (40.0 + 180.0 * fx) as u8;
+                let g = (60.0 + 160.0 * fy) as u8;
+                let b = if checker == 0 { 170 } else { 220 };
+
+                rgba.extend_from_slice(&[r, g, b, 255]);
+            }
+        }
+
+        iced::widget::image::Handle::from_rgba(width, height, rgba)
     }
 
     #[cfg(feature = "webview")]
@@ -414,10 +511,14 @@ impl App {
         }
 
         if self.embedded_webview.is_none() {
-            if let (Some(handle), Some(bounds)) =
-                (self.window_handle.as_ref(), self.webview_bounds)
+            if let (Some(handle), Some(bounds)) = (self.window_handle.as_ref(), self.webview_bounds)
             {
-                match EmbeddedWebView::new(handle, bounds, self.scale_factor, &self.webview_state.url) {
+                match EmbeddedWebView::new(
+                    handle,
+                    bounds,
+                    self.scale_factor,
+                    &self.webview_state.url,
+                ) {
                     Ok(webview) => {
                         self.embedded_webview = Some(webview);
                         self.embedded_webview_error = None;
@@ -487,32 +588,161 @@ impl App {
             Message::MediaPause => self.media_player.pause(),
             Message::MediaSeek(pos) => {
                 if let Some(duration) = self.media_player.duration {
-                    let secs = (pos * duration.as_secs_f32()) as u64;
+                    let secs = pos.clamp(0.0, 1.0) * duration.as_secs_f32();
                     self.media_player
-                        .seek(std::time::Duration::from_secs(secs));
+                        .seek(std::time::Duration::from_secs_f32(secs));
                 }
             }
             Message::MediaVolume(vol) => self.media_player.set_volume(vol),
-            // Audio recorder
-            Message::AudioRecordStart => self.audio_recorder.start(),
-            Message::AudioRecordStop => self.audio_recorder.stop(),
-            Message::AudioRecordPause => self.audio_recorder.pause(),
-            Message::AudioRecordResume => self.audio_recorder.resume(),
-            // Video recorder
-            Message::VideoRecordStart => {
-                match self.ensure_video_camera_running() {
-                    Ok(()) => {
-                        self.webcam_error = None;
-                        self.video_recorded_duration = Duration::ZERO;
-                        self.video_recording_start = Some(Instant::now());
-                        self.video_recorder.start();
-                    }
-                    Err(e) => {
-                        self.webcam_error = Some(e);
-                        self.video_recorder.error();
+            Message::MediaStop => self.media_player.stop(),
+            Message::MediaMute => self.media_player.toggle_mute(),
+            Message::MediaTick => {
+                if self.media_player.state() == PlaybackState::Playing {
+                    let next = self.media_player.position() + Duration::from_millis(100);
+                    if let Some(duration) = self.media_player.duration() {
+                        if next >= duration {
+                            self.media_player.stop();
+                        } else {
+                            self.media_player.set_position(next);
+                        }
+                    } else {
+                        self.media_player.set_position(next);
                     }
                 }
+
+                if self.audio_playing {
+                    if let Some(ref player) = self.audio_player {
+                        if !player.is_playing() && !player.is_paused() {
+                            self.audio_playing = false;
+                        }
+                    } else {
+                        self.audio_playing = false;
+                    }
+                }
+
+                if self.audio_recorder.is_recording() {
+                    let duration = self.current_audio_duration();
+                    self.audio_recorder.update_duration(duration);
+                    let t = duration.as_secs_f32();
+                    let level =
+                        ((t * 7.1).sin().abs() * 0.7 + (t * 2.3).sin().abs() * 0.3).clamp(0.0, 1.0);
+                    self.audio_recorder.update_audio_level(level);
+                } else if self.audio_recorder.state == RecordingState::Paused {
+                    self.audio_recorder.update_audio_level(0.08);
+                } else {
+                    self.audio_recorder.update_audio_level(0.0);
+                }
+
+                if self.video_recorder.is_recording() {
+                    let duration = self.current_video_duration();
+                    self.video_recorder.update_duration(duration);
+                }
             }
+            Message::MediaHotkey(hotkey) => {
+                if self.current_page != Page::Media {
+                    return Task::none();
+                }
+
+                match hotkey {
+                    MediaHotkey::TogglePlayPause => self.media_player.toggle(),
+                    MediaHotkey::StopPlayback => self.media_player.stop(),
+                    MediaHotkey::ToggleMute => self.media_player.toggle_mute(),
+                    MediaHotkey::SeekBackward => {
+                        let target = self
+                            .media_player
+                            .position()
+                            .saturating_sub(Duration::from_secs(5));
+                        self.media_player.seek(target);
+                    }
+                    MediaHotkey::SeekForward => {
+                        let target = self.media_player.position() + Duration::from_secs(5);
+                        self.media_player.seek(target);
+                    }
+                    MediaHotkey::VolumeDown => {
+                        self.media_player
+                            .set_volume(self.media_player.volume - 0.05);
+                    }
+                    MediaHotkey::VolumeUp => {
+                        self.media_player
+                            .set_volume(self.media_player.volume + 0.05);
+                    }
+                    MediaHotkey::ToggleWebcam => {
+                        return if self.webcam.is_running() {
+                            self.update(Message::StopWebcam)
+                        } else {
+                            self.update(Message::StartWebcam)
+                        };
+                    }
+                    MediaHotkey::CaptureFrame => {
+                        if self.webcam.is_running() {
+                            return self.update(Message::WebcamFrame);
+                        }
+                    }
+                    MediaHotkey::ToggleAudioRecording => match self.audio_recorder.state {
+                        RecordingState::Idle | RecordingState::Error => {
+                            return self.update(Message::AudioRecordStart);
+                        }
+                        RecordingState::Recording | RecordingState::Paused => {
+                            return self.update(Message::AudioRecordStop);
+                        }
+                        RecordingState::Processing => {}
+                    },
+                    MediaHotkey::ToggleAudioPause => match self.audio_recorder.state {
+                        RecordingState::Recording => return self.update(Message::AudioRecordPause),
+                        RecordingState::Paused => return self.update(Message::AudioRecordResume),
+                        _ => {}
+                    },
+                    MediaHotkey::ToggleVideoRecording => match self.video_recorder.state {
+                        RecordingState::Idle | RecordingState::Error => {
+                            return self.update(Message::VideoRecordStart);
+                        }
+                        RecordingState::Recording | RecordingState::Paused => {
+                            return self.update(Message::VideoRecordStop);
+                        }
+                        RecordingState::Processing => {}
+                    },
+                    MediaHotkey::ToggleVideoPause => match self.video_recorder.state {
+                        RecordingState::Recording => return self.update(Message::VideoRecordPause),
+                        RecordingState::Paused => return self.update(Message::VideoRecordResume),
+                        _ => {}
+                    },
+                }
+            }
+            // Audio recorder
+            Message::AudioRecordStart => {
+                self.audio_recorded_duration = Duration::ZERO;
+                self.audio_recording_start = Some(Instant::now());
+                self.audio_recorder.start();
+            }
+            Message::AudioRecordStop => {
+                self.finalize_audio_duration();
+                self.audio_recorder.stop();
+                self.audio_recorder.finish();
+                self.reset_audio_timers();
+            }
+            Message::AudioRecordPause => {
+                if let Some(start) = self.audio_recording_start.take() {
+                    self.audio_recorded_duration += start.elapsed();
+                }
+                self.audio_recorder.pause();
+            }
+            Message::AudioRecordResume => {
+                self.audio_recording_start = Some(Instant::now());
+                self.audio_recorder.resume();
+            }
+            // Video recorder
+            Message::VideoRecordStart => match self.ensure_video_camera_running() {
+                Ok(()) => {
+                    self.webcam_error = None;
+                    self.video_recorded_duration = Duration::ZERO;
+                    self.video_recording_start = Some(Instant::now());
+                    self.video_recorder.start();
+                }
+                Err(e) => {
+                    self.webcam_error = Some(e);
+                    self.video_recorder.error();
+                }
+            },
             Message::VideoRecordStop => {
                 self.finalize_video_duration();
                 self.video_recorder.stop();
@@ -606,7 +836,8 @@ impl App {
                     ToastVariant::Warning => "Please be careful",
                     ToastVariant::Error => "Something went wrong",
                 };
-                self.toasts.push((self.toast_id_counter, msg.to_string(), variant));
+                self.toasts
+                    .push((self.toast_id_counter, msg.to_string(), variant));
                 self.toast_id_counter += 1;
             }
             Message::CloseToast(id) => {
@@ -689,7 +920,8 @@ impl App {
             Message::OpenWebView => {
                 if let Err(e) = self.webview_window.open(&self.url_input) {
                     // Show error as toast
-                    self.toasts.push((self.toast_id_counter, e, ToastVariant::Error));
+                    self.toasts
+                        .push((self.toast_id_counter, e, ToastVariant::Error));
                     self.toast_id_counter += 1;
                 }
             }
@@ -930,10 +1162,22 @@ impl App {
         let sizes: Element<'_, Message> = HStack::new()
             .spacing(8.0)
             .align(alignment::Vertical::Center)
-            .push(Button::primary("XS").extra_small().on_press(Message::Increment))
-            .push(Button::primary("Small").small().on_press(Message::Increment))
+            .push(
+                Button::primary("XS")
+                    .extra_small()
+                    .on_press(Message::Increment),
+            )
+            .push(
+                Button::primary("Small")
+                    .small()
+                    .on_press(Message::Increment),
+            )
             .push(Button::primary("Medium").on_press(Message::Increment))
-            .push(Button::primary("Large").large().on_press(Message::Increment))
+            .push(
+                Button::primary("Large")
+                    .large()
+                    .on_press(Message::Increment),
+            )
             .into();
 
         VStack::new()
@@ -952,19 +1196,19 @@ impl App {
             .stack_below(BreakpointTier::SM)
             .push(
                 Card::new(column![text("Flat"), text("No shadow").size(12)].spacing(4))
-                    .elevation(Elevation::Flat)
+                    .elevation(Elevation::Flat),
             )
             .push(
                 Card::new(column![text("Low"), text("Subtle").size(12)].spacing(4))
-                    .elevation(Elevation::Low)
+                    .elevation(Elevation::Low),
             )
             .push(
                 Card::new(column![text("Medium"), text("Moderate").size(12)].spacing(4))
-                    .elevation(Elevation::Medium)
+                    .elevation(Elevation::Medium),
             )
             .push(
                 Card::new(column![text("High"), text("Strong").size(12)].spacing(4))
-                    .elevation(Elevation::High)
+                    .elevation(Elevation::High),
             )
             .into();
 
@@ -1022,7 +1266,11 @@ impl App {
             .push(Avatar::new("John Doe").size(AvatarSize::Small))
             .push(Avatar::new("Jane Smith").size(AvatarSize::Medium))
             .push(Avatar::new("Bob Wilson").size(AvatarSize::Large))
-            .push(Avatar::new("Alice").size(AvatarSize::XL).shape(AvatarShape::Rounded))
+            .push(
+                Avatar::new("Alice")
+                    .size(AvatarSize::XL)
+                    .shape(AvatarShape::Rounded),
+            )
             .into();
 
         VStack::new()
@@ -1044,7 +1292,11 @@ impl App {
                     .push(Skeleton::text().width(Length::Fixed(150.0)))
                     .push(Skeleton::text().width(Length::Fixed(100.0))),
             )
-            .push(Skeleton::rounded().width(Length::Fixed(60.0)).height(Length::Fixed(40.0)))
+            .push(
+                Skeleton::rounded()
+                    .width(Length::Fixed(60.0))
+                    .height(Length::Fixed(40.0)),
+            )
             .into();
 
         VStack::new()
@@ -1058,22 +1310,36 @@ impl App {
     fn tooltips_section(&self) -> Element<'_, Message> {
         let tooltips: Element<'_, Message> = HStack::new()
             .spacing(12.0)
-            .push(Tooltip::new(
-                Button::primary("Top").small().on_press(Message::Increment),
-                "Tooltip on top",
-            ).position(TooltipPosition::Top))
-            .push(Tooltip::new(
-                Button::secondary("Bottom").small().on_press(Message::Increment),
-                "Tooltip on bottom",
-            ).position(TooltipPosition::Bottom))
-            .push(Tooltip::new(
-                Button::outline("Left").small().on_press(Message::Increment),
-                "Tooltip on left",
-            ).position(TooltipPosition::Left))
-            .push(Tooltip::new(
-                Button::ghost("Right").small().on_press(Message::Increment),
-                "Tooltip on right",
-            ).position(TooltipPosition::Right))
+            .push(
+                Tooltip::new(
+                    Button::primary("Top").small().on_press(Message::Increment),
+                    "Tooltip on top",
+                )
+                .position(TooltipPosition::Top),
+            )
+            .push(
+                Tooltip::new(
+                    Button::secondary("Bottom")
+                        .small()
+                        .on_press(Message::Increment),
+                    "Tooltip on bottom",
+                )
+                .position(TooltipPosition::Bottom),
+            )
+            .push(
+                Tooltip::new(
+                    Button::outline("Left").small().on_press(Message::Increment),
+                    "Tooltip on left",
+                )
+                .position(TooltipPosition::Left),
+            )
+            .push(
+                Tooltip::new(
+                    Button::ghost("Right").small().on_press(Message::Increment),
+                    "Tooltip on right",
+                )
+                .position(TooltipPosition::Right),
+            )
             .into();
 
         VStack::new()
@@ -1188,17 +1454,24 @@ impl App {
                     .on_input(Message::InputChanged)
                     .width(Length::Fill),
             )
-            .push(Text::new(if self.input_value.is_empty() {
-                "Type something above...".to_string()
-            } else {
-                format!("You typed: {}", self.input_value)
-            }).muted())
+            .push(
+                Text::new(if self.input_value.is_empty() {
+                    "Type something above...".to_string()
+                } else {
+                    format!("You typed: {}", self.input_value)
+                })
+                .muted(),
+            )
             .into()
     }
 
     fn select_section(&self) -> Element<'_, Message> {
         let select: Element<'_, Message> = Select::new(
-            &[DropdownOption::Option1, DropdownOption::Option2, DropdownOption::Option3][..],
+            &[
+                DropdownOption::Option1,
+                DropdownOption::Option2,
+                DropdownOption::Option3,
+            ][..],
             self.selected_option,
             Message::DropdownSelected,
         )
@@ -1211,10 +1484,14 @@ impl App {
             .push(Heading::h2("Select / Dropdown"))
             .push(Text::new("Pick an option from the list").muted())
             .push(select)
-            .push(Text::new(format!(
-                "Selected: {}",
-                self.selected_option.map_or("None".to_string(), |o| o.to_string())
-            )).muted())
+            .push(
+                Text::new(format!(
+                    "Selected: {}",
+                    self.selected_option
+                        .map_or("None".to_string(), |o| o.to_string())
+                ))
+                .muted(),
+            )
             .into()
     }
 
@@ -1230,10 +1507,13 @@ impl App {
             .push(Heading::h2("Text Area"))
             .push(Text::new("Multi-line text input for longer content").muted())
             .push(textarea)
-            .push(Text::new(format!(
-                "Characters: {}",
-                self.textarea_content.text().len()
-            )).muted())
+            .push(
+                Text::new(format!(
+                    "Characters: {}",
+                    self.textarea_content.text().len()
+                ))
+                .muted(),
+            )
             .into()
     }
 
@@ -1256,8 +1536,16 @@ impl App {
     fn checkboxes_switches_section(&self) -> Element<'_, Message> {
         let checkboxes: Element<'_, Message> = VStack::new()
             .spacing(8.0)
-            .push(Checkbox::new("Accept terms and conditions", self.checkbox_checked, Message::CheckboxToggled))
-            .push(Checkbox::new("Enable notifications", self.checkbox2_checked, Message::Checkbox2Toggled))
+            .push(Checkbox::new(
+                "Accept terms and conditions",
+                self.checkbox_checked,
+                Message::CheckboxToggled,
+            ))
+            .push(Checkbox::new(
+                "Enable notifications",
+                self.checkbox2_checked,
+                Message::Checkbox2Toggled,
+            ))
             .into();
 
         let switches: Element<'_, Message> = HStack::new()
@@ -1265,7 +1553,11 @@ impl App {
             .align(alignment::Vertical::Center)
             .push(Text::new("Feature toggle:"))
             .push(Switch::new(self.switch_enabled, Message::ToggleSwitch))
-            .push(if self.switch_enabled { Text::new("On") } else { Text::new("Off").muted() })
+            .push(if self.switch_enabled {
+                Text::new("On")
+            } else {
+                Text::new("Off").muted()
+            })
             .into();
 
         let checkboxes_section: Element<'_, Message> = VStack::new()
@@ -1289,14 +1581,11 @@ impl App {
     }
 
     fn slider_section(&self) -> Element<'_, Message> {
-        let slider: Element<'_, Message> = Slider::new(
-            0.0..=100.0,
-            self.slider_value,
-            Message::SliderChanged,
-        )
-        .step(1.0)
-        .width(Length::Fill)
-        .into();
+        let slider: Element<'_, Message> =
+            Slider::new(0.0..=100.0, self.slider_value, Message::SliderChanged)
+                .step(1.0)
+                .width(Length::Fill)
+                .into();
 
         let progress = Progress::new(self.slider_value / 100.0).height(8.0);
 
@@ -1435,28 +1724,49 @@ impl App {
                 VStack::new()
                     .spacing(8.0)
                     .align(alignment::Horizontal::Center)
-                    .push(CircularSpinner::new().size(40.0).progress(self.spinner_progress))
+                    .push(
+                        CircularSpinner::new()
+                            .size(40.0)
+                            .progress(self.spinner_progress),
+                    )
                     .push(Text::new("Circular").size(12.0)),
             )
             .push(
                 VStack::new()
                     .spacing(8.0)
                     .align(alignment::Horizontal::Center)
-                    .push(container(LinearSpinner::new().width(100.0).height(4.0).progress(self.spinner_progress)).width(Length::Fixed(100.0)))
+                    .push(
+                        container(
+                            LinearSpinner::new()
+                                .width(100.0)
+                                .height(4.0)
+                                .progress(self.spinner_progress),
+                        )
+                        .width(Length::Fixed(100.0)),
+                    )
                     .push(Text::new("Linear").size(12.0)),
             )
             .push(
                 VStack::new()
                     .spacing(8.0)
                     .align(alignment::Horizontal::Center)
-                    .push(DotsSpinner::new().dot_count(3).dot_size(8.0).progress(self.spinner_progress))
+                    .push(
+                        DotsSpinner::new()
+                            .dot_count(3)
+                            .dot_size(8.0)
+                            .progress(self.spinner_progress),
+                    )
                     .push(Text::new("Dots").size(12.0)),
             )
             .push(
                 VStack::new()
                     .spacing(8.0)
                     .align(alignment::Horizontal::Center)
-                    .push(PulseSpinner::new().size(24.0).progress(self.spinner_progress))
+                    .push(
+                        PulseSpinner::new()
+                            .size(24.0)
+                            .progress(self.spinner_progress),
+                    )
                     .push(Text::new("Pulse").size(12.0)),
             )
             .into();
@@ -1477,10 +1787,26 @@ impl App {
     fn toasts_section(&self) -> Element<'_, Message> {
         let buttons: Element<'_, Message> = HStack::new()
             .spacing(8.0)
-            .push(Button::primary("Info Toast").small().on_press(Message::ShowToast(ToastVariant::Info)))
-            .push(Button::secondary("Success").small().on_press(Message::ShowToast(ToastVariant::Success)))
-            .push(Button::outline("Warning").small().on_press(Message::ShowToast(ToastVariant::Warning)))
-            .push(Button::destructive("Error").small().on_press(Message::ShowToast(ToastVariant::Error)))
+            .push(
+                Button::primary("Info Toast")
+                    .small()
+                    .on_press(Message::ShowToast(ToastVariant::Info)),
+            )
+            .push(
+                Button::secondary("Success")
+                    .small()
+                    .on_press(Message::ShowToast(ToastVariant::Success)),
+            )
+            .push(
+                Button::outline("Warning")
+                    .small()
+                    .on_press(Message::ShowToast(ToastVariant::Warning)),
+            )
+            .push(
+                Button::destructive("Error")
+                    .small()
+                    .on_press(Message::ShowToast(ToastVariant::Error)),
+            )
             .into();
 
         VStack::new()
@@ -1498,6 +1824,7 @@ impl App {
         VStack::new()
             .spacing(32.0)
             .push(self.page_header("Media", "Images, audio, video, and recording"))
+            .push(self.media_shortcuts_panel())
             .push(self.images_section())
             .push(horizontal_rule(1))
             .push(self.real_audio_section())
@@ -1513,6 +1840,20 @@ impl App {
             .into()
     }
 
+    fn media_shortcuts_panel(&self) -> Element<'_, Message> {
+        let shortcuts = column![
+            Text::new("Keyboard shortcuts").size(14.0),
+            Text::new("Space/K: Play/Pause  |  X: Stop  |  M: Mute").muted(),
+            Text::new("Left/Right: Seek ±5s  |  Up/Down: Volume ±5%").muted(),
+            Text::new("W: Toggle webcam  |  C: Capture frame").muted(),
+            Text::new("R: Start/Stop audio rec  |  Shift+R: Pause/Resume").muted(),
+            Text::new("V: Start/Stop video rec  |  Shift+V: Pause/Resume").muted(),
+        ]
+        .spacing(4.0);
+
+        Card::new(shortcuts).fill_width().padding(12.0).into()
+    }
+
     fn real_audio_section(&self) -> Element<'_, Message> {
         let status = if self.audio_player.is_some() {
             if self.audio_playing {
@@ -1524,107 +1865,195 @@ impl App {
             "Audio not available (build with --features audio)"
         };
 
-        let play_btn = Button::primary("Play Test Tone")
-            .on_press(Message::PlayTestTone);
-        let stop_btn = Button::secondary("Stop")
-            .on_press(Message::StopAudio);
+        let play_btn = Button::primary("Play Test Tone").on_press_maybe(
+            (!self.audio_playing && self.audio_player.is_some()).then_some(Message::PlayTestTone),
+        );
+        let stop_btn = Button::secondary("Stop").on_press_maybe(
+            (self.audio_playing && self.audio_player.is_some()).then_some(Message::StopAudio),
+        );
 
-        let controls: Element<'_, Message> = row![play_btn, stop_btn]
-            .spacing(12)
+        let play_tooltip = if self.audio_player.is_none() {
+            "Audio backend unavailable"
+        } else if self.audio_playing {
+            "Already playing (press X to stop)"
+        } else {
+            "Play test tone (shortcut: K or Space)"
+        };
+        let stop_tooltip = if self.audio_player.is_none() {
+            "Audio backend unavailable"
+        } else if self.audio_playing {
+            "Stop playback (shortcut: X)"
+        } else {
+            "Nothing is playing"
+        };
+
+        let play_control: Element<'_, Message> = Tooltip::new(play_btn, play_tooltip)
+            .position(TooltipPosition::Top)
             .into();
+        let stop_control: Element<'_, Message> = Tooltip::new(stop_btn, stop_tooltip)
+            .position(TooltipPosition::Top)
+            .into();
+
+        let controls: Element<'_, Message> = row![play_control, stop_control].spacing(12).into();
 
         VStack::new()
             .spacing(12.0)
             .push(Heading::h2("Real Audio Playback"))
             .push(Text::new("Uses rodio for actual audio output").muted())
-            .push(Card::new(
-                column![
-                    Text::new(status),
-                    Space::with_height(12),
-                    controls,
-                ]
-            ).fill_width().padding(16.0))
+            .push(
+                Card::new(column![Text::new(status), Space::with_height(12), controls,])
+                    .fill_width()
+                    .padding(16.0),
+            )
             .into()
     }
 
     fn webcam_section(&self) -> Element<'_, Message> {
-        let (width, height) = self.webcam.resolution();
-
         let preview: Element<'_, Message> = if let Some(ref handle) = self.webcam_frame {
             iced::widget::image(handle.clone())
-                .width(Length::Fixed(width as f32))
-                .height(Length::Fixed(height as f32))
+                .width(Length::Fill)
+                .height(Length::Fixed(240.0))
+                .content_fit(iced::ContentFit::Contain)
                 .into()
         } else if let Some(ref error) = self.webcam_error {
-            container(
-                Text::new(format!("Error: {}", error)).muted()
-            )
-            .width(Length::Fixed(width as f32))
-            .height(Length::Fixed(height as f32))
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .style(|theme: &Theme| {
-                container::Style {
-                    background: Some(iced::Background::Color(theme.extended_palette().background.weak.color)),
+            container(Text::new(format!("Error: {}", error)).muted())
+                .width(Length::Fill)
+                .height(Length::Fixed(240.0))
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .style(|theme: &Theme| container::Style {
+                    background: Some(iced::Background::Color(
+                        theme.extended_palette().background.weak.color,
+                    )),
                     ..Default::default()
-                }
-            })
-            .into()
+                })
+                .into()
         } else {
             container(
-                Text::new(if self.webcam.is_running() { "Starting camera..." } else { "Camera not started" }).muted()
+                Text::new(if self.webcam.is_running() {
+                    "Starting camera..."
+                } else {
+                    "Camera not started"
+                })
+                .muted(),
             )
-            .width(Length::Fixed(width as f32))
-            .height(Length::Fixed(height as f32))
+            .width(Length::Fill)
+            .height(Length::Fixed(240.0))
             .center_x(Length::Fill)
             .center_y(Length::Fill)
-            .style(|theme: &Theme| {
-                container::Style {
-                    background: Some(iced::Background::Color(theme.extended_palette().background.weak.color)),
-                    ..Default::default()
-                }
+            .style(|theme: &Theme| container::Style {
+                background: Some(iced::Background::Color(
+                    theme.extended_palette().background.weak.color,
+                )),
+                ..Default::default()
             })
             .into()
         };
 
         let start_btn = Button::primary("Start Webcam")
-            .on_press(Message::StartWebcam);
+            .on_press_maybe((!self.webcam.is_running()).then_some(Message::StartWebcam));
         let stop_btn = Button::secondary("Stop Webcam")
-            .on_press(Message::StopWebcam);
+            .on_press_maybe(self.webcam.is_running().then_some(Message::StopWebcam));
         let capture_btn = Button::outline("Capture Frame")
-            .on_press(Message::WebcamFrame);
+            .on_press_maybe(self.webcam.is_running().then_some(Message::WebcamFrame));
 
-        let controls: Element<'_, Message> = row![start_btn, stop_btn, capture_btn]
+        let start_tip = if self.webcam.is_running() {
+            "Camera already running"
+        } else {
+            "Start webcam (shortcut: W)"
+        };
+        let stop_tip = if self.webcam.is_running() {
+            "Stop webcam (shortcut: W)"
+        } else {
+            "Camera is not running"
+        };
+        let capture_tip = if self.webcam.is_running() {
+            "Capture current frame (shortcut: C)"
+        } else {
+            "Start webcam to capture frames"
+        };
+
+        let start_control: Element<'_, Message> = Tooltip::new(start_btn, start_tip)
+            .position(TooltipPosition::Top)
+            .into();
+        let stop_control: Element<'_, Message> = Tooltip::new(stop_btn, stop_tip)
+            .position(TooltipPosition::Top)
+            .into();
+        let capture_control: Element<'_, Message> = Tooltip::new(capture_btn, capture_tip)
+            .position(TooltipPosition::Top)
+            .into();
+
+        let controls: Element<'_, Message> = row![start_control, stop_control, capture_control]
             .spacing(12)
             .into();
+
+        let webcam_status = format!(
+            "Status: {}{}",
+            if self.webcam.is_running() {
+                "Running"
+            } else {
+                "Stopped"
+            },
+            if self.webcam_owned_by_video {
+                " (owned by video recorder)"
+            } else {
+                ""
+            }
+        );
 
         VStack::new()
             .spacing(12.0)
             .push(Heading::h2("Webcam"))
-            .push(Text::new("Uses nokhwa for camera capture (build with --features webcam)").muted())
-            .push(Card::new(
-                column![
-                    preview,
-                    Space::with_height(12),
-                    controls,
-                ]
-            ).fill_width().padding(16.0))
+            .push(
+                Text::new("Uses nokhwa for camera capture (build with --features webcam)").muted(),
+            )
+            .push(Text::new(webcam_status).muted())
+            .push(
+                Card::new(column![preview, Space::with_height(12), controls,])
+                    .fill_width()
+                    .padding(16.0),
+            )
             .into()
     }
 
     fn images_section(&self) -> Element<'_, Message> {
+        let sample_image: Element<'_, Message> = Image::new(self.demo_image.clone())
+            .width(Length::Fill)
+            .height(180.0)
+            .fit(iced::ContentFit::Cover)
+            .into();
+
         let placeholders: Element<'_, Message> = ResponsiveRow::new()
             .spacing(16.0)
             .stack_below(BreakpointTier::SM)
-            .push(ImagePlaceholder::new().width(Length::Fixed(120.0)).height(Length::Fixed(90.0)).message("120x90"))
-            .push(ImagePlaceholder::new().width(Length::Fixed(160.0)).height(Length::Fixed(120.0)).message("160x120"))
-            .push(ImagePlaceholder::new().width(Length::Fixed(200.0)).height(Length::Fixed(150.0)).message("200x150"))
+            .push(
+                ImagePlaceholder::new()
+                    .width(Length::Fixed(120.0))
+                    .height(Length::Fixed(90.0))
+                    .message("120x90"),
+            )
+            .push(
+                ImagePlaceholder::new()
+                    .width(Length::Fixed(160.0))
+                    .height(Length::Fixed(120.0))
+                    .message("160x120"),
+            )
+            .push(
+                ImagePlaceholder::new()
+                    .width(Length::Fixed(200.0))
+                    .height(Length::Fixed(150.0))
+                    .message("200x150"),
+            )
             .into();
 
         VStack::new()
             .spacing(12.0)
             .push(Heading::h2("Images"))
-            .push(Text::new("Image placeholders (use Image component with actual image files)").muted())
+            .push(
+                Text::new("Image placeholders (use Image component with actual image files)")
+                    .muted(),
+            )
+            .push(Card::new(sample_image).fill_width().padding(8.0))
             .push(placeholders)
             .into()
     }
@@ -1633,14 +2062,36 @@ impl App {
         let controls: Element<'_, Message> = AudioControls::new(&self.media_player)
             .on_play(Message::MediaPlay)
             .on_pause(Message::MediaPause)
+            .on_stop(Message::MediaStop)
             .on_seek(Message::MediaSeek)
             .on_volume(Message::MediaVolume)
+            .on_mute(Message::MediaMute)
             .into();
+
+        let status = match self.media_player.state() {
+            PlaybackState::Stopped => "Stopped",
+            PlaybackState::Playing => "Playing",
+            PlaybackState::Paused => "Paused",
+            PlaybackState::Loading => "Loading",
+            PlaybackState::Error => "Error",
+        };
 
         VStack::new()
             .spacing(12.0)
             .push(Heading::h2("Audio Player"))
             .push(Text::new("Audio player UI (connect to actual audio backend)").muted())
+            .push(
+                Text::new(format!(
+                    "State: {status} | {} / {}",
+                    self.media_player.position_str(),
+                    self.media_player.duration_str()
+                ))
+                .muted(),
+            )
+            .push(
+                Text::new("Shortcuts: Space/K play-pause, X stop, M mute, arrows seek/volume")
+                    .muted(),
+            )
             .push(Card::new(controls).fill_width().padding(16.0))
             .into()
     }
@@ -1651,12 +2102,30 @@ impl App {
             .on_stop(Message::AudioRecordStop)
             .on_pause(Message::AudioRecordPause)
             .on_resume(Message::AudioRecordResume)
+            .audio_level(self.audio_recorder.audio_level)
             .into();
+
+        let status = match self.audio_recorder.state {
+            RecordingState::Idle => "Idle",
+            RecordingState::Recording => "Recording",
+            RecordingState::Paused => "Paused",
+            RecordingState::Processing => "Processing",
+            RecordingState::Error => "Error",
+        };
 
         VStack::new()
             .spacing(12.0)
             .push(Heading::h2("Audio Recorder"))
             .push(Text::new("Record audio (connect to platform microphone)").muted())
+            .push(
+                Text::new(format!(
+                    "State: {status} | Duration: {} | Level: {:.0}%",
+                    self.audio_recorder.duration_str(),
+                    self.audio_recorder.audio_level * 100.0
+                ))
+                .muted(),
+            )
+            .push(Text::new("Shortcuts: R start-stop, Shift+R pause-resume").muted())
             .push(Card::new(recorder).fill_width().padding(16.0))
             .into()
     }
@@ -1669,12 +2138,29 @@ impl App {
             .on_resume(Message::VideoRecordResume)
             .on_toggle_audio(Message::VideoToggleAudio)
             .on_toggle_video(Message::VideoToggleVideo)
+            .preview(self.webcam_frame.as_ref())
             .into();
+
+        let status = match self.video_recorder.state {
+            RecordingState::Idle => "Idle",
+            RecordingState::Recording => "Recording",
+            RecordingState::Paused => "Paused",
+            RecordingState::Processing => "Processing",
+            RecordingState::Error => "Error",
+        };
 
         VStack::new()
             .spacing(12.0)
             .push(Heading::h2("Video Recorder"))
             .push(Text::new("Record video (connect to platform camera)").muted())
+            .push(
+                Text::new(format!(
+                    "State: {status} | Duration: {}",
+                    self.video_recorder.duration_str()
+                ))
+                .muted(),
+            )
+            .push(Text::new("Shortcuts: V start-stop, Shift+V pause-resume").muted())
             .push(Card::new(recorder).fill_width().padding(16.0))
             .into()
     }
@@ -1730,8 +2216,7 @@ impl App {
             "Click 'Open in Browser' to launch system browser"
         };
 
-        let open_webview_btn = Button::primary("Open in Browser")
-            .on_press(Message::OpenWebView);
+        let open_webview_btn = Button::primary("Open in Browser").on_press(Message::OpenWebView);
 
         let real_webview_section: Element<'_, Message> = Card::new(
             column![
@@ -1775,9 +2260,7 @@ impl App {
 
     #[cfg(feature = "webview")]
     fn embedded_webview_area(&self) -> Element<'_, Message> {
-        let status_text: Element<'_, Message> = if let Some(err) =
-            &self.embedded_webview_error
-        {
+        let status_text: Element<'_, Message> = if let Some(err) = &self.embedded_webview_error {
             Text::new(format!("Error starting webview: {err}")).into()
         } else if self.embedded_webview.is_some() {
             Text::new("Embedded webview is active").into()
@@ -1795,13 +2278,15 @@ impl App {
                     .size(11.0)
                     .muted(),
             ]
-            .spacing(4)
+            .spacing(4),
         )
         .width(Length::Fill)
         .height(Length::Fixed(300.0))
         .padding(12)
         .style(|_| container::Style {
-            background: Some(Background::Color(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
+            background: Some(Background::Color(iced::Color::from_rgba(
+                0.0, 0.0, 0.0, 0.0,
+            ))),
             ..Default::default()
         })
         .id(self.webview_container_id.clone())
@@ -1860,9 +2345,30 @@ impl App {
             .update_duration(self.video_recorded_duration);
     }
 
+    fn finalize_audio_duration(&mut self) {
+        if let Some(start) = self.audio_recording_start.take() {
+            self.audio_recorded_duration += start.elapsed();
+        }
+        self.audio_recorder
+            .update_duration(self.audio_recorded_duration);
+    }
+
     fn reset_video_timers(&mut self) {
         self.video_recorded_duration = Duration::ZERO;
         self.video_recording_start = None;
+    }
+
+    fn reset_audio_timers(&mut self) {
+        self.audio_recorded_duration = Duration::ZERO;
+        self.audio_recording_start = None;
+    }
+
+    fn current_audio_duration(&self) -> Duration {
+        if let Some(start) = self.audio_recording_start {
+            self.audio_recorded_duration + start.elapsed()
+        } else {
+            self.audio_recorded_duration
+        }
     }
 
     fn current_video_duration(&self) -> Duration {

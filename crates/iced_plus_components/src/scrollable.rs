@@ -174,9 +174,7 @@ impl<'a, Message: Clone + 'a> ScrollableBuilder<'a, Message> {
         // Note: iced's scrollable doesn't have built-in anchor support,
         // so we just add the content. For actual scroll-to, users should
         // track positions manually or use scrollable commands.
-        let section = container(content)
-            .width(Length::Fill)
-            .into();
+        let section = container(content).width(Length::Fill).into();
         self.children.push(section);
         self
     }
@@ -238,51 +236,50 @@ pub fn themed_scrollable<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    scrollable(content)
-        .style(|theme, status| {
-            let palette = theme.extended_palette();
+    scrollable(content).style(|theme, status| {
+        let palette = theme.extended_palette();
 
-            let rail_bg = palette.background.weak.color;
-            let scroller_color = match status {
-                scrollable::Status::Active => palette.background.strong.color,
-                scrollable::Status::Hovered { .. } | scrollable::Status::Dragged { .. } => {
-                    palette.primary.base.color
-                }
-            };
-
-            scrollable::Style {
-                container: container::Style::default(),
-                vertical_rail: scrollable::Rail {
-                    background: Some(Background::Color(rail_bg)),
-                    border: Border {
-                        radius: 4.0.into(),
-                        ..Default::default()
-                    },
-                    scroller: scrollable::Scroller {
-                        color: scroller_color,
-                        border: Border {
-                            radius: 4.0.into(),
-                            ..Default::default()
-                        },
-                    },
-                },
-                horizontal_rail: scrollable::Rail {
-                    background: Some(Background::Color(rail_bg)),
-                    border: Border {
-                        radius: 4.0.into(),
-                        ..Default::default()
-                    },
-                    scroller: scrollable::Scroller {
-                        color: scroller_color,
-                        border: Border {
-                            radius: 4.0.into(),
-                            ..Default::default()
-                        },
-                    },
-                },
-                gap: None,
+        let rail_bg = palette.background.weak.color;
+        let scroller_color = match status {
+            scrollable::Status::Active => palette.background.strong.color,
+            scrollable::Status::Hovered { .. } | scrollable::Status::Dragged { .. } => {
+                palette.primary.base.color
             }
-        })
+        };
+
+        scrollable::Style {
+            container: container::Style::default(),
+            vertical_rail: scrollable::Rail {
+                background: Some(Background::Color(rail_bg)),
+                border: Border {
+                    radius: 4.0.into(),
+                    ..Default::default()
+                },
+                scroller: scrollable::Scroller {
+                    color: scroller_color,
+                    border: Border {
+                        radius: 4.0.into(),
+                        ..Default::default()
+                    },
+                },
+            },
+            horizontal_rail: scrollable::Rail {
+                background: Some(Background::Color(rail_bg)),
+                border: Border {
+                    radius: 4.0.into(),
+                    ..Default::default()
+                },
+                scroller: scrollable::Scroller {
+                    color: scroller_color,
+                    border: Border {
+                        radius: 4.0.into(),
+                        ..Default::default()
+                    },
+                },
+            },
+            gap: None,
+        }
+    })
 }
 
 /// Minimal scrollable (thin, subtle scrollbar).
@@ -292,48 +289,47 @@ pub fn minimal_scrollable<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    scrollable(content)
-        .style(|theme, status| {
-            let palette = theme.extended_palette();
+    scrollable(content).style(|theme, status| {
+        let palette = theme.extended_palette();
 
-            let scroller_color = match status {
-                scrollable::Status::Active => Color {
-                    a: 0.3,
-                    ..palette.background.strong.color
-                },
-                scrollable::Status::Hovered { .. } | scrollable::Status::Dragged { .. } => Color {
-                    a: 0.6,
-                    ..palette.background.strong.color
-                },
-            };
+        let scroller_color = match status {
+            scrollable::Status::Active => Color {
+                a: 0.3,
+                ..palette.background.strong.color
+            },
+            scrollable::Status::Hovered { .. } | scrollable::Status::Dragged { .. } => Color {
+                a: 0.6,
+                ..palette.background.strong.color
+            },
+        };
 
-            scrollable::Style {
-                container: container::Style::default(),
-                vertical_rail: scrollable::Rail {
-                    background: None,
-                    border: Border::default(),
-                    scroller: scrollable::Scroller {
-                        color: scroller_color,
-                        border: Border {
-                            radius: 2.0.into(),
-                            ..Default::default()
-                        },
+        scrollable::Style {
+            container: container::Style::default(),
+            vertical_rail: scrollable::Rail {
+                background: None,
+                border: Border::default(),
+                scroller: scrollable::Scroller {
+                    color: scroller_color,
+                    border: Border {
+                        radius: 2.0.into(),
+                        ..Default::default()
                     },
                 },
-                horizontal_rail: scrollable::Rail {
-                    background: None,
-                    border: Border::default(),
-                    scroller: scrollable::Scroller {
-                        color: scroller_color,
-                        border: Border {
-                            radius: 2.0.into(),
-                            ..Default::default()
-                        },
+            },
+            horizontal_rail: scrollable::Rail {
+                background: None,
+                border: Border::default(),
+                scroller: scrollable::Scroller {
+                    color: scroller_color,
+                    border: Border {
+                        radius: 2.0.into(),
+                        ..Default::default()
                     },
                 },
-                gap: None,
-            }
-        })
+            },
+            gap: None,
+        }
+    })
 }
 
 /// Scroll position helpers.

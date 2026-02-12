@@ -42,28 +42,56 @@ fn default_style(theme: &AppTheme, status: text_input::Status, is_dark: bool) ->
 
     let (border_color, border_width) = match status {
         text_input::Status::Active => (
-            if is_dark { theme.neutral(Shade::S700) } else { theme.neutral(Shade::S300) },
+            if is_dark {
+                theme.neutral(Shade::S700)
+            } else {
+                theme.neutral(Shade::S300)
+            },
             1.0,
         ),
         text_input::Status::Hovered => (
-            if is_dark { theme.neutral(Shade::S600) } else { theme.neutral(Shade::S400) },
+            if is_dark {
+                theme.neutral(Shade::S600)
+            } else {
+                theme.neutral(Shade::S400)
+            },
             1.0,
         ),
         text_input::Status::Focused => (theme.primary(Shade::S500), 2.0),
         text_input::Status::Disabled => (
-            if is_dark { theme.neutral(Shade::S800) } else { theme.neutral(Shade::S200) },
+            if is_dark {
+                theme.neutral(Shade::S800)
+            } else {
+                theme.neutral(Shade::S200)
+            },
             1.0,
         ),
     };
 
     let (text_color, placeholder_color) = match status {
         text_input::Status::Disabled => (
-            if is_dark { theme.neutral(Shade::S500) } else { theme.neutral(Shade::S400) },
-            if is_dark { theme.neutral(Shade::S600) } else { theme.neutral(Shade::S300) },
+            if is_dark {
+                theme.neutral(Shade::S500)
+            } else {
+                theme.neutral(Shade::S400)
+            },
+            if is_dark {
+                theme.neutral(Shade::S600)
+            } else {
+                theme.neutral(Shade::S300)
+            },
         ),
         _ => (
-            if is_dark { theme.neutral(Shade::S100) } else { theme.neutral(Shade::S900) },
-            if is_dark { theme.neutral(Shade::S500) } else { theme.neutral(Shade::S400) },
+            if is_dark {
+                theme.neutral(Shade::S100)
+            } else {
+                theme.neutral(Shade::S900)
+            },
+            if is_dark {
+                theme.neutral(Shade::S500)
+            } else {
+                theme.neutral(Shade::S400)
+            },
         ),
     };
 
@@ -118,12 +146,28 @@ fn filled_style(theme: &AppTheme, status: text_input::Status, is_dark: bool) -> 
 
     let (text_color, placeholder_color) = match status {
         text_input::Status::Disabled => (
-            if is_dark { theme.neutral(Shade::S500) } else { theme.neutral(Shade::S400) },
-            if is_dark { theme.neutral(Shade::S600) } else { theme.neutral(Shade::S300) },
+            if is_dark {
+                theme.neutral(Shade::S500)
+            } else {
+                theme.neutral(Shade::S400)
+            },
+            if is_dark {
+                theme.neutral(Shade::S600)
+            } else {
+                theme.neutral(Shade::S300)
+            },
         ),
         _ => (
-            if is_dark { theme.neutral(Shade::S100) } else { theme.neutral(Shade::S900) },
-            if is_dark { theme.neutral(Shade::S500) } else { theme.neutral(Shade::S400) },
+            if is_dark {
+                theme.neutral(Shade::S100)
+            } else {
+                theme.neutral(Shade::S900)
+            },
+            if is_dark {
+                theme.neutral(Shade::S500)
+            } else {
+                theme.neutral(Shade::S400)
+            },
         ),
     };
 

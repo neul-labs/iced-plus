@@ -206,9 +206,7 @@ impl<'a, Message: Clone + 'a> From<RichTextEditor<'a, Message>> for Element<'a, 
 
         // Combine toolbar and editor
         let content: Element<'a, Message, Theme> = if let Some(toolbar) = toolbar {
-            column![toolbar, text_ed]
-                .spacing(0)
-                .into()
+            column![toolbar, text_ed].spacing(0).into()
         } else {
             text_ed.into()
         };
@@ -255,21 +253,24 @@ fn create_toolbar<'a, Message: Clone + 'a>(
     };
 
     let separator = || {
-        container(Space::new(1, 20))
-            .style(|theme: &Theme| {
-                let palette = theme.extended_palette();
-                container::Style {
-                    background: Some(Background::Color(palette.background.weak.color)),
-                    ..Default::default()
-                }
-            })
+        container(Space::new(1, 20)).style(|theme: &Theme| {
+            let palette = theme.extended_palette();
+            container::Style {
+                background: Some(Background::Color(palette.background.weak.color)),
+                ..Default::default()
+            }
+        })
     };
 
     let toolbar_content = row![
         // Text formatting
         btn(IconName::Edit, RichTextAction::ToggleBold, formatting.bold),
         // Using Edit icon for italic since we don't have a specific italic icon
-        btn(IconName::Edit, RichTextAction::ToggleItalic, formatting.italic),
+        btn(
+            IconName::Edit,
+            RichTextAction::ToggleItalic,
+            formatting.italic
+        ),
         separator(),
         // Lists
         btn(IconName::List, RichTextAction::InsertBullet, false),

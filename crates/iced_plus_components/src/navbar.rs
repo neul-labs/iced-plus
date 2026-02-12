@@ -157,9 +157,7 @@ impl<'a, Message: Clone + 'a> From<AppBar<'a, Message>> for Element<'a, Message,
                                 ..Default::default()
                             },
                             button::Status::Hovered => button::Style {
-                                background: Some(Background::Color(
-                                    palette.background.weak.color,
-                                )),
+                                background: Some(Background::Color(palette.background.weak.color)),
                                 text_color: palette.background.base.text,
                                 border: Border {
                                     radius: 4.0.into(),
@@ -188,11 +186,7 @@ impl<'a, Message: Clone + 'a> From<AppBar<'a, Message>> for Element<'a, Message,
 
         // Title
         if let Some(title) = bar.title {
-            items.push(
-                text(title)
-                    .size(18)
-                    .into(),
-            );
+            items.push(text(title).size(18).into());
             items.push(Space::with_width(16).into());
         }
 
@@ -237,13 +231,11 @@ impl<'a, Message: Clone + 'a> From<AppBar<'a, Message>> for Element<'a, Message,
                                 }
                             }
                             button::Status::Hovered => button::Style {
-                                background: Some(Background::Color(
-                                    if is_active {
-                                        palette.primary.weak.color
-                                    } else {
-                                        palette.background.weak.color
-                                    },
-                                )),
+                                background: Some(Background::Color(if is_active {
+                                    palette.primary.weak.color
+                                } else {
+                                    palette.background.weak.color
+                                })),
                                 text_color: if is_active {
                                     palette.primary.strong.color
                                 } else {
@@ -282,9 +274,7 @@ impl<'a, Message: Clone + 'a> From<AppBar<'a, Message>> for Element<'a, Message,
             items.push(end);
         }
 
-        let content = row(items)
-            .spacing(4)
-            .align_y(iced::Alignment::Center);
+        let content = row(items).spacing(4).align_y(iced::Alignment::Center);
 
         container(content)
             .width(Length::Fill)
@@ -365,11 +355,7 @@ impl<'a, Message: Clone + 'a> From<SideNav<'a, Message>> for Element<'a, Message
 
         // Header
         if let Some(header) = nav.header {
-            items.push(
-                container(text(header).size(12))
-                    .padding(16)
-                    .into(),
-            );
+            items.push(container(text(header).size(12)).padding(16).into());
         }
 
         // Navigation items
@@ -418,9 +404,7 @@ impl<'a, Message: Clone + 'a> From<SideNav<'a, Message>> for Element<'a, Message
                                 }
                             }
                             button::Status::Hovered => button::Style {
-                                background: Some(Background::Color(
-                                    palette.background.weak.color,
-                                )),
+                                background: Some(Background::Color(palette.background.weak.color)),
                                 text_color: palette.background.base.text,
                                 border: Border {
                                     radius: 8.0.into(),

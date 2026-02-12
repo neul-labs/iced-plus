@@ -113,7 +113,5 @@ pub mod prelude {
 
     // Media components
     #[cfg(feature = "components")]
-    pub use iced_plus_components::{
-        AudioControls, MediaPlayerState, PlaybackState, VideoControls,
-    };
+    pub use iced_plus_components::{AudioControls, MediaPlayerState, PlaybackState, VideoControls};
 }

@@ -28,9 +28,7 @@
 //! ```
 
 use iced::widget::{button, column, container, row, text, Space};
-use iced::{
-    alignment, Background, Border, Color, Element, Length, Padding, Theme,
-};
+use iced::{alignment, Background, Border, Color, Element, Length, Padding, Theme};
 use std::borrow::Cow;
 use std::time::Duration;
 
@@ -337,7 +335,7 @@ pub fn toast_container<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    use iced::widget::{stack, Row, Column};
+    use iced::widget::{stack, Column, Row};
 
     if toasts.is_empty() {
         return content.into();
@@ -354,74 +352,61 @@ where
 
     // Create a positioned toast container that doesn't block mouse events
     // by only covering the area needed for the toasts
-    let toast_container_el = container(toast_list)
-        .padding(16);
+    let toast_container_el = container(toast_list).padding(16);
 
     // Position the toasts using row/column alignment without a full-screen container
     // This prevents the overlay from capturing scroll events
     let toast_overlay: Element<'a, Message, Theme> = match position {
-        ToastPosition::TopRight => {
-            Column::new()
-                .push(
-                    Row::new()
-                        .push(Space::with_width(Length::Fill))
-                        .push(toast_container_el)
-                )
-                .push(Space::with_height(Length::Fill))
-                .into()
-        }
-        ToastPosition::TopLeft => {
-            Column::new()
-                .push(
-                    Row::new()
-                        .push(toast_container_el)
-                        .push(Space::with_width(Length::Fill))
-                )
-                .push(Space::with_height(Length::Fill))
-                .into()
-        }
-        ToastPosition::BottomRight => {
-            Column::new()
-                .push(Space::with_height(Length::Fill))
-                .push(
-                    Row::new()
-                        .push(Space::with_width(Length::Fill))
-                        .push(toast_container_el)
-                )
-                .into()
-        }
-        ToastPosition::BottomLeft => {
-            Column::new()
-                .push(Space::with_height(Length::Fill))
-                .push(
-                    Row::new()
-                        .push(toast_container_el)
-                        .push(Space::with_width(Length::Fill))
-                )
-                .into()
-        }
-        ToastPosition::TopCenter => {
-            Column::new()
-                .push(
-                    Row::new()
-                        .push(Space::with_width(Length::Fill))
-                        .push(toast_container_el)
-                        .push(Space::with_width(Length::Fill))
-                )
-                .push(Space::with_height(Length::Fill))
-                .into()
-        }
-        ToastPosition::BottomCenter => {
-            Column::new()
-                .push(Space::with_height(Length::Fill))
-                .push(
-                    Row::new()
-                        .push(Space::with_width(Length::Fill))
-                        .push(toast_container_el)
-                        .push(Space::with_width(Length::Fill))
-                )
-                .into()
-        }
+        ToastPosition::TopRight => Column::new()
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fill))
+                    .push(toast_container_el),
+            )
+            .push(Space::with_height(Length::Fill))
+            .into(),
+        ToastPosition::TopLeft => Column::new()
+            .push(
+                Row::new()
+                    .push(toast_container_el)
+                    .push(Space::with_width(Length::Fill)),
+            )
+            .push(Space::with_height(Length::Fill))
+            .into(),
+        ToastPosition::BottomRight => Column::new()
+            .push(Space::with_height(Length::Fill))
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fill))
+                    .push(toast_container_el),
+            )
+            .into(),
+        ToastPosition::BottomLeft => Column::new()
+            .push(Space::with_height(Length::Fill))
+            .push(
+                Row::new()
+                    .push(toast_container_el)
+                    .push(Space::with_width(Length::Fill)),
+            )
+            .into(),
+        ToastPosition::TopCenter => Column::new()
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fill))
+                    .push(toast_container_el)
+                    .push(Space::with_width(Length::Fill)),
+            )
+            .push(Space::with_height(Length::Fill))
+            .into(),
+        ToastPosition::BottomCenter => Column::new()
+            .push(Space::with_height(Length::Fill))
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fill))
+                    .push(toast_container_el)
+                    .push(Space::with_width(Length::Fill)),
+            )
+            .into(),
     };
 
     stack![content.into(), toast_overlay].into()

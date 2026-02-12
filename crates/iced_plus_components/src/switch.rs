@@ -186,7 +186,8 @@ where
     }
 }
 
-impl<'a, Message, Theme, Renderer> From<Switch<'a, Message>> for Element<'a, Message, Theme, Renderer>
+impl<'a, Message, Theme, Renderer> From<Switch<'a, Message>>
+    for Element<'a, Message, Theme, Renderer>
 where
     Message: Clone + 'a,
     Theme: 'a,

@@ -25,7 +25,10 @@ impl BadgeVariant {
     fn colors(self) -> (Color, Color) {
         // (background, text)
         match self {
-            Self::Default => (Color::from_rgb(0.9, 0.9, 0.9), Color::from_rgb(0.3, 0.3, 0.3)),
+            Self::Default => (
+                Color::from_rgb(0.9, 0.9, 0.9),
+                Color::from_rgb(0.3, 0.3, 0.3),
+            ),
             Self::Primary => (Color::from_rgb(0.22, 0.47, 0.87), Color::WHITE),
             Self::Success => (Color::from_rgb(0.13, 0.70, 0.40), Color::WHITE),
             Self::Warning => (Color::from_rgb(0.95, 0.65, 0.15), Color::BLACK),

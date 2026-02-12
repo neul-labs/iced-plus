@@ -89,7 +89,10 @@ impl Motion {
     /// Create a new motion definition.
     #[must_use]
     pub const fn new(duration_ms: u32, easing: Easing) -> Self {
-        Self { duration_ms, easing }
+        Self {
+            duration_ms,
+            easing,
+        }
     }
 
     /// Create motion from a duration preset.

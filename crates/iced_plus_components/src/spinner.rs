@@ -341,10 +341,7 @@ impl<Message> canvas::Program<Message, Theme> for LinearProgram {
         };
 
         // Draw animated bar
-        let bar = Path::rectangle(
-            Point::new(bar_x, 0.0),
-            Size::new(bar_width, bounds.height),
-        );
+        let bar = Path::rectangle(Point::new(bar_x, 0.0), Size::new(bar_width, bounds.height));
         frame.fill(&bar, palette.primary.base.color);
 
         vec![frame.into_geometry()]
@@ -650,7 +647,9 @@ pub fn spinner_subscription() -> Subscription<SpinnerMessage> {
 /// # Arguments
 ///
 /// * `cycle_duration` - How long one complete animation cycle takes.
-pub fn spinner_subscription_with_duration(cycle_duration: Duration) -> Subscription<SpinnerMessage> {
+pub fn spinner_subscription_with_duration(
+    cycle_duration: Duration,
+) -> Subscription<SpinnerMessage> {
     iced::time::every(DEFAULT_FRAME_DURATION).map(move |_| {
         // Calculate progress based on current time
         let elapsed = Instant::now().elapsed().as_secs_f32();

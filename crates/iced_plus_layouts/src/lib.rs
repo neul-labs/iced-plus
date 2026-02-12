@@ -50,21 +50,17 @@
 #![allow(clippy::module_name_repetitions)]
 
 mod direction;
-mod private;
-#[cfg(feature = "stacks")]
-mod stack;
-#[cfg(feature = "shell")]
-mod shell;
 #[cfg(feature = "overlay")]
 mod overlay;
+mod private;
 #[cfg(feature = "responsive")]
 mod responsive;
+#[cfg(feature = "shell")]
+mod shell;
+#[cfg(feature = "stacks")]
+mod stack;
 
 pub use direction::{Direction, Horizontal, Vertical};
-#[cfg(feature = "stacks")]
-pub use stack::{HStack, Stack, VStack};
-#[cfg(feature = "shell")]
-pub use shell::AppShell;
 #[cfg(feature = "overlay")]
 pub use overlay::{drawer, drawer_left, drawer_right, modal, modal_with_opacity, Modal};
 #[cfg(feature = "responsive")]
@@ -72,3 +68,7 @@ pub use responsive::{
     hide_on, responsive_row, show_on, BreakpointTier, Breakpoints, Responsive, ResponsiveRow,
     ShowOn,
 };
+#[cfg(feature = "shell")]
+pub use shell::AppShell;
+#[cfg(feature = "stacks")]
+pub use stack::{HStack, Stack, VStack};

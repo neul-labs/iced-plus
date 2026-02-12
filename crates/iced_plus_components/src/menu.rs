@@ -57,7 +57,10 @@ impl<'a, Message> MenuItem<'a, Message> {
     /// Add an icon to the item.
     #[must_use]
     pub fn icon(mut self, icon: impl Into<Cow<'a, str>>) -> Self {
-        if let Self::Item { icon: ref mut i, .. } = self {
+        if let Self::Item {
+            icon: ref mut i, ..
+        } = self
+        {
             *i = Some(icon.into());
         }
         self
@@ -66,7 +69,10 @@ impl<'a, Message> MenuItem<'a, Message> {
     /// Set enabled state.
     #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
-        if let Self::Item { enabled: ref mut e, .. } = self {
+        if let Self::Item {
+            enabled: ref mut e, ..
+        } = self
+        {
             *e = enabled;
         }
         self
@@ -75,7 +81,11 @@ impl<'a, Message> MenuItem<'a, Message> {
     /// Add a shortcut hint.
     #[must_use]
     pub fn shortcut(mut self, shortcut: impl Into<Cow<'a, str>>) -> Self {
-        if let Self::Item { shortcut: ref mut s, .. } = self {
+        if let Self::Item {
+            shortcut: ref mut s,
+            ..
+        } = self
+        {
             *s = Some(shortcut.into());
         }
         self
@@ -118,7 +128,11 @@ impl<'a, Message> Menu<'a, Message> {
 
     /// Add a submenu.
     #[must_use]
-    pub fn submenu(mut self, label: impl Into<Cow<'a, str>>, items: Vec<MenuItem<'a, Message>>) -> Self {
+    pub fn submenu(
+        mut self,
+        label: impl Into<Cow<'a, str>>,
+        items: Vec<MenuItem<'a, Message>>,
+    ) -> Self {
         self.items.push(MenuItem::submenu(label, items));
         self
     }

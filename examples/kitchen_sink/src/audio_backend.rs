@@ -131,8 +131,12 @@ pub mod backend {
         pub fn resume(&self) {}
         pub fn stop(&self) {}
         pub fn set_volume(&mut self, _volume: f32) {}
-        pub fn is_playing(&self) -> bool { false }
-        pub fn is_paused(&self) -> bool { false }
+        pub fn is_playing(&self) -> bool {
+            false
+        }
+        pub fn is_paused(&self) -> bool {
+            false
+        }
     }
 
     impl Default for AudioPlayer {

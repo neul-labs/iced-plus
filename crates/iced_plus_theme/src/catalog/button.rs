@@ -100,7 +100,10 @@ fn secondary_style(theme: &AppTheme, status: button::Status, is_dark: bool) -> b
 
 fn ghost_style(theme: &AppTheme, status: button::Status, is_dark: bool) -> button::Style {
     let (bg, text_shade) = match status {
-        button::Status::Active => (Color::TRANSPARENT, if is_dark { Shade::S100 } else { Shade::S700 }),
+        button::Status::Active => (
+            Color::TRANSPARENT,
+            if is_dark { Shade::S100 } else { Shade::S700 },
+        ),
         button::Status::Hovered => {
             let bg = if is_dark {
                 Color::from_rgba(1.0, 1.0, 1.0, 0.1)

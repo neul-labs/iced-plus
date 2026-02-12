@@ -340,10 +340,7 @@ impl IconProgram {
                 // Three horizontal lines
                 for i in 0..3 {
                     let y = size * (0.3 + i as f32 * 0.2);
-                    let line = Path::line(
-                        Point::new(size * 0.2, y),
-                        Point::new(size * 0.8, y),
-                    );
+                    let line = Path::line(Point::new(size * 0.2, y), Point::new(size * 0.8, y));
                     frame.stroke(&line, stroke);
                 }
             }
@@ -948,10 +945,7 @@ impl IconProgram {
                     let bullet = Path::circle(Point::new(size * 0.25, y), size * 0.04);
                     frame.fill(&bullet, color);
                     // Line
-                    let line = Path::line(
-                        Point::new(size * 0.35, y),
-                        Point::new(size * 0.8, y),
-                    );
+                    let line = Path::line(Point::new(size * 0.35, y), Point::new(size * 0.8, y));
                     frame.stroke(&line, thin_stroke);
                 }
             }
@@ -1148,10 +1142,8 @@ impl IconProgram {
                         let r = if i % 2 == 0 { outer_r } else { inner_r };
                         let angle = (i as f32 * std::f32::consts::PI / points as f32)
                             - std::f32::consts::PI / 2.0;
-                        let point = Point::new(
-                            center.x + angle.cos() * r,
-                            center.y + angle.sin() * r,
-                        );
+                        let point =
+                            Point::new(center.x + angle.cos() * r, center.y + angle.sin() * r);
                         if i == 0 {
                             b.move_to(point);
                         } else {
@@ -1301,9 +1293,9 @@ impl<Message> canvas::Program<Message, Theme> for IconProgram {
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
 
-        let color = self.color.unwrap_or_else(|| {
-            theme.extended_palette().background.base.text
-        });
+        let color = self
+            .color
+            .unwrap_or_else(|| theme.extended_palette().background.base.text);
 
         self.draw_icon(&mut frame, bounds, color);
 

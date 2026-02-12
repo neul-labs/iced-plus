@@ -413,7 +413,9 @@ pub mod urls {
 
     /// Get the domain from a URL.
     pub fn domain(url: &str) -> Option<&str> {
-        let url = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
+        let url = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("http://"))?;
         url.split('/').next()
     }
 }

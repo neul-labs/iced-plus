@@ -134,7 +134,11 @@ impl MediaPlayerState {
 
     /// Update the current position (called from playback updates).
     pub fn set_position(&mut self, position: Duration) {
-        self.position = position;
+        if let Some(duration) = self.duration {
+            self.position = position.min(duration);
+        } else {
+            self.position = position;
+        }
     }
 
     /// Set the total duration.
@@ -167,10 +171,28 @@ impl MediaPlayerState {
     pub fn progress(&self) -> f32 {
         if let Some(duration) = self.duration {
             if duration.as_secs_f32() > 0.0 {
-                return self.position.as_secs_f32() / duration.as_secs_f32();
+                return (self.position.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
             }
         }
         0.0
+    }
+
+    /// Get current playback state.
+    #[must_use]
+    pub fn state(&self) -> PlaybackState {
+        self.state
+    }
+
+    /// Get current playback position.
+    #[must_use]
+    pub fn position(&self) -> Duration {
+        self.position
+    }
+
+    /// Get total media duration.
+    #[must_use]
+    pub fn duration(&self) -> Option<Duration> {
+        self.duration
     }
 
     /// Check if currently playing.
@@ -317,8 +339,7 @@ where
     }
 }
 
-impl<'a, Message> From<AudioControls<'a, Message>>
-    for iced::Element<'a, Message, iced::Theme>
+impl<'a, Message> From<AudioControls<'a, Message>> for iced::Element<'a, Message, iced::Theme>
 where
     Message: Clone + 'a,
 {
@@ -346,10 +367,9 @@ where
             btn.into()
         };
 
-        let stop: Option<iced::Element<'a, Message, iced::Theme>> =
-            controls.on_stop.map(|msg| {
-                button(text("⏹").size(16)).on_press(msg).into()
-            });
+        let stop: Option<iced::Element<'a, Message, iced::Theme>> = controls
+            .on_stop
+            .map(|msg| button(text("⏹").size(16)).on_press(msg).into());
 
         let seek_bar: Option<iced::Element<'a, Message, iced::Theme>> =
             controls.on_seek.map(|on_seek| {
@@ -359,20 +379,19 @@ where
                     .into()
             });
 
-        let time_display: Option<iced::Element<'a, Message, iced::Theme>> =
-            if controls.show_time {
-                Some(
-                    text(format!(
-                        "{} / {}",
-                        controls.state.position_str(),
-                        controls.state.duration_str()
-                    ))
-                    .size(12)
-                    .into(),
-                )
-            } else {
-                None
-            };
+        let time_display: Option<iced::Element<'a, Message, iced::Theme>> = if controls.show_time {
+            Some(
+                text(format!(
+                    "{} / {}",
+                    controls.state.position_str(),
+                    controls.state.duration_str()
+                ))
+                .size(12)
+                .into(),
+            )
+        } else {
+            None
+        };
 
         let volume: Option<iced::Element<'a, Message, iced::Theme>> =
             controls.on_volume.map(|on_volume| {
@@ -401,7 +420,10 @@ where
             if let Some(time) = time_display {
                 items.push(time);
             }
-            row(items).spacing(8).align_y(iced::Alignment::Center).into()
+            row(items)
+                .spacing(8)
+                .align_y(iced::Alignment::Center)
+                .into()
         } else {
             let mut top_row: Vec<iced::Element<'a, Message, iced::Theme>> = vec![play_pause];
             if let Some(stop) = stop {
@@ -415,12 +437,10 @@ where
                 top_row.push(vol);
             }
 
-            let mut content: Vec<iced::Element<'a, Message, iced::Theme>> = vec![
-                row(top_row)
-                    .spacing(8)
-                    .align_y(iced::Alignment::Center)
-                    .into(),
-            ];
+            let mut content: Vec<iced::Element<'a, Message, iced::Theme>> = vec![row(top_row)
+                .spacing(8)
+                .align_y(iced::Alignment::Center)
+                .into()];
 
             if let Some(seek) = seek_bar {
                 content.push(seek);
@@ -599,7 +619,8 @@ impl RecorderState {
     /// Get remaining time if max duration set.
     #[must_use]
     pub fn remaining(&self) -> Option<Duration> {
-        self.max_duration.map(|max| max.saturating_sub(self.duration))
+        self.max_duration
+            .map(|max| max.saturating_sub(self.duration))
     }
 }
 
@@ -620,6 +641,7 @@ pub struct AudioRecorder<'a, Message> {
     on_pause: Option<Message>,
     on_resume: Option<Message>,
     on_toggle_audio: Option<Message>,
+    audio_level: Option<f32>,
     show_level: bool,
     show_time: bool,
 }
@@ -637,6 +659,7 @@ where
             on_pause: None,
             on_resume: None,
             on_toggle_audio: None,
+            audio_level: None,
             show_level: true,
             show_time: true,
         }
@@ -677,6 +700,13 @@ where
         self
     }
 
+    /// Override displayed audio level (0.0-1.0).
+    #[must_use]
+    pub fn audio_level(mut self, level: f32) -> Self {
+        self.audio_level = Some(level.clamp(0.0, 1.0));
+        self
+    }
+
     /// Hide audio level indicator.
     #[must_use]
     pub fn hide_level(mut self) -> Self {
@@ -692,8 +722,7 @@ where
     }
 }
 
-impl<'a, Message> From<AudioRecorder<'a, Message>>
-    for iced::Element<'a, Message, iced::Theme>
+impl<'a, Message> From<AudioRecorder<'a, Message>> for iced::Element<'a, Message, iced::Theme>
 where
     Message: Clone + 'a,
 {
@@ -702,20 +731,22 @@ where
         use iced::{Background, Border, Color, Length};
 
         let state = recorder.state;
+        let displayed_level = recorder.audio_level.unwrap_or(state.audio_level);
 
         // Record/Stop button
         let main_btn: iced::Element<'a, Message, iced::Theme> = match state.state {
             RecordingState::Idle | RecordingState::Error => {
                 let mut btn = button(
-                    container(Space::new(Length::Fixed(20.0), Length::Fixed(20.0)))
-                        .style(|_theme| container::Style {
+                    container(Space::new(Length::Fixed(20.0), Length::Fixed(20.0))).style(
+                        |_theme| container::Style {
                             background: Some(Background::Color(Color::from_rgb(0.9, 0.2, 0.2))),
                             border: Border {
                                 radius: 10.0.into(),
                                 ..Default::default()
                             },
                             ..Default::default()
-                        }),
+                        },
+                    ),
                 )
                 .padding(8);
                 if let Some(msg) = recorder.on_start {
@@ -725,15 +756,16 @@ where
             }
             RecordingState::Recording | RecordingState::Paused => {
                 let mut btn = button(
-                    container(Space::new(Length::Fixed(20.0), Length::Fixed(20.0)))
-                        .style(|_theme| container::Style {
+                    container(Space::new(Length::Fixed(20.0), Length::Fixed(20.0))).style(
+                        |_theme| container::Style {
                             background: Some(Background::Color(Color::from_rgb(0.3, 0.3, 0.3))),
                             border: Border {
                                 radius: 4.0.into(),
                                 ..Default::default()
                             },
                             ..Default::default()
-                        }),
+                        },
+                    ),
                 )
                 .padding(8);
                 if let Some(msg) = recorder.on_stop {
@@ -741,37 +773,37 @@ where
                 }
                 btn.into()
             }
-            RecordingState::Processing => {
-                button(text("...").size(14)).into()
-            }
+            RecordingState::Processing => button(text("...").size(14)).into(),
         };
 
         // Pause/Resume button
         let pause_btn: Option<iced::Element<'a, Message, iced::Theme>> =
             if state.state == RecordingState::Recording {
-                recorder.on_pause.map(|msg| {
-                    button(text("II").size(14)).on_press(msg).into()
-                })
+                recorder
+                    .on_pause
+                    .map(|msg| button(text("II").size(14)).on_press(msg).into())
             } else if state.state == RecordingState::Paused {
-                recorder.on_resume.map(|msg| {
-                    button(text("Resume").size(12)).on_press(msg).into()
-                })
+                recorder
+                    .on_resume
+                    .map(|msg| button(text("Resume").size(12)).on_press(msg).into())
             } else {
                 None
             };
 
         // Audio level indicator
-        let level_indicator: Option<iced::Element<'a, Message, iced::Theme>> =
-            if recorder.show_level && (state.state == RecordingState::Recording || state.state == RecordingState::Paused) {
-                Some(
-                    progress_bar(0.0..=1.0, state.audio_level)
-                        .height(8)
-                        .width(Length::Fixed(100.0))
-                        .into(),
-                )
-            } else {
-                None
-            };
+        let level_indicator: Option<iced::Element<'a, Message, iced::Theme>> = if recorder
+            .show_level
+            && (state.state == RecordingState::Recording || state.state == RecordingState::Paused)
+        {
+            Some(
+                progress_bar(0.0..=1.0, displayed_level)
+                    .height(8)
+                    .width(Length::Fixed(100.0))
+                    .into(),
+            )
+        } else {
+            None
+        };
 
         // Time display
         let time: Option<iced::Element<'a, Message, iced::Theme>> =
@@ -791,7 +823,11 @@ where
         // Audio toggle
         let audio_toggle: Option<iced::Element<'a, Message, iced::Theme>> =
             recorder.on_toggle_audio.map(|msg| {
-                let icon = if state.audio_enabled { "Mic ON" } else { "Mic OFF" };
+                let icon = if state.audio_enabled {
+                    "Mic ON"
+                } else {
+                    "Mic OFF"
+                };
                 button(text(icon).size(12)).on_press(msg).into()
             });
 
@@ -810,11 +846,9 @@ where
             items.push(audio);
         }
 
-        column![
-            row(items).spacing(12).align_y(iced::Alignment::Center),
-        ]
-        .spacing(8)
-        .into()
+        column![row(items).spacing(12).align_y(iced::Alignment::Center),]
+            .spacing(8)
+            .into()
     }
 }
 
@@ -836,6 +870,7 @@ pub struct VideoRecorder<'a, Message> {
     on_toggle_audio: Option<Message>,
     on_toggle_video: Option<Message>,
     on_switch_camera: Option<Message>,
+    preview: Option<&'a iced::widget::image::Handle>,
     show_preview: bool,
 }
 
@@ -854,6 +889,7 @@ where
             on_toggle_audio: None,
             on_toggle_video: None,
             on_switch_camera: None,
+            preview: None,
             show_preview: true,
         }
     }
@@ -907,6 +943,13 @@ where
         self
     }
 
+    /// Set a camera preview frame image handle.
+    #[must_use]
+    pub fn preview(mut self, frame: Option<&'a iced::widget::image::Handle>) -> Self {
+        self.preview = frame;
+        self
+    }
+
     /// Hide preview area.
     #[must_use]
     pub fn hide_preview(mut self) -> Self {
@@ -915,41 +958,50 @@ where
     }
 }
 
-impl<'a, Message> From<VideoRecorder<'a, Message>>
-    for iced::Element<'a, Message, iced::Theme>
+impl<'a, Message> From<VideoRecorder<'a, Message>> for iced::Element<'a, Message, iced::Theme>
 where
     Message: Clone + 'a,
 {
     fn from(recorder: VideoRecorder<'a, Message>) -> Self {
-        use iced::widget::{button, column, container, row, text, Space};
+        use iced::widget::{button, column, container, image, row, text, Space};
         use iced::{Background, Border, Color, Length};
 
         let state = recorder.state;
 
         // Preview area placeholder
         let preview: iced::Element<'a, Message, iced::Theme> = if recorder.show_preview {
-            container(
-                column![
-                    text("Camera Preview").size(14),
-                    text("(Connect to platform camera)").size(10),
-                ]
-                .spacing(4)
-                .align_x(iced::Alignment::Center),
-            )
-            .width(Length::Fill)
-            .height(Length::Fixed(200.0))
-            .center_x(Length::Fill)
-            .center_y(Length::Fixed(200.0))
-            .style(|_theme| container::Style {
-                background: Some(Background::Color(Color::from_rgb(0.1, 0.1, 0.1))),
-                text_color: Some(Color::from_rgb(0.7, 0.7, 0.7)),
-                border: Border {
-                    radius: 8.0.into(),
+            let preview_content: iced::Element<'a, Message, iced::Theme> =
+                if let Some(handle) = recorder.preview {
+                    image(handle.clone())
+                        .width(Length::Fill)
+                        .height(Length::Fixed(200.0))
+                        .content_fit(iced::ContentFit::Cover)
+                        .into()
+                } else {
+                    column![
+                        text("Camera Preview").size(14),
+                        text("(Connect to platform camera)").size(10),
+                    ]
+                    .spacing(4)
+                    .align_x(iced::Alignment::Center)
+                    .into()
+                };
+
+            container(preview_content)
+                .width(Length::Fill)
+                .height(Length::Fixed(200.0))
+                .center_x(Length::Fill)
+                .center_y(Length::Fixed(200.0))
+                .style(|_theme| container::Style {
+                    background: Some(Background::Color(Color::from_rgb(0.1, 0.1, 0.1))),
+                    text_color: Some(Color::from_rgb(0.7, 0.7, 0.7)),
+                    border: Border {
+                        radius: 8.0.into(),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            })
-            .into()
+                })
+                .into()
         } else {
             Space::with_height(0).into()
         };
@@ -958,15 +1010,16 @@ where
         let record_btn: iced::Element<'a, Message, iced::Theme> = match state.state {
             RecordingState::Idle | RecordingState::Error => {
                 let mut btn = button(
-                    container(Space::new(Length::Fixed(24.0), Length::Fixed(24.0)))
-                        .style(|_theme| container::Style {
+                    container(Space::new(Length::Fixed(24.0), Length::Fixed(24.0))).style(
+                        |_theme| container::Style {
                             background: Some(Background::Color(Color::from_rgb(0.9, 0.2, 0.2))),
                             border: Border {
                                 radius: 12.0.into(),
                                 ..Default::default()
                             },
                             ..Default::default()
-                        }),
+                        },
+                    ),
                 )
                 .padding(12);
                 if let Some(msg) = recorder.on_start {
@@ -976,15 +1029,16 @@ where
             }
             RecordingState::Recording | RecordingState::Paused => {
                 let mut btn = button(
-                    container(Space::new(Length::Fixed(24.0), Length::Fixed(24.0)))
-                        .style(|_theme| container::Style {
+                    container(Space::new(Length::Fixed(24.0), Length::Fixed(24.0))).style(
+                        |_theme| container::Style {
                             background: Some(Background::Color(Color::from_rgb(0.3, 0.3, 0.3))),
                             border: Border {
                                 radius: 4.0.into(),
                                 ..Default::default()
                             },
                             ..Default::default()
-                        }),
+                        },
+                    ),
                 )
                 .padding(12);
                 if let Some(msg) = recorder.on_stop {
@@ -992,9 +1046,7 @@ where
                 }
                 btn.into()
             }
-            RecordingState::Processing => {
-                button(text("Processing...").size(12)).into()
-            }
+            RecordingState::Processing => button(text("Processing...").size(12)).into(),
         };
 
         // Recording time
@@ -1013,7 +1065,9 @@ where
                     })
                     .into()
             } else if state.state == RecordingState::Paused {
-                text(format!("PAUSED {}", state.duration_str())).size(14).into()
+                text(format!("PAUSED {}", state.duration_str()))
+                    .size(14)
+                    .into()
             } else {
                 text("Ready").size(14).into()
             };
@@ -1021,20 +1075,27 @@ where
         // Toggle buttons
         let audio_btn: Option<iced::Element<'a, Message, iced::Theme>> =
             recorder.on_toggle_audio.map(|msg| {
-                let label = if state.audio_enabled { "Mic ON" } else { "Mic OFF" };
+                let label = if state.audio_enabled {
+                    "Mic ON"
+                } else {
+                    "Mic OFF"
+                };
                 button(text(label).size(12)).on_press(msg).into()
             });
 
         let video_btn: Option<iced::Element<'a, Message, iced::Theme>> =
             recorder.on_toggle_video.map(|msg| {
-                let label = if state.video_enabled { "Cam ON" } else { "Cam OFF" };
+                let label = if state.video_enabled {
+                    "Cam ON"
+                } else {
+                    "Cam OFF"
+                };
                 button(text(label).size(12)).on_press(msg).into()
             });
 
-        let switch_btn: Option<iced::Element<'a, Message, iced::Theme>> =
-            recorder.on_switch_camera.map(|msg| {
-                button(text("Switch Cam").size(12)).on_press(msg).into()
-            });
+        let switch_btn: Option<iced::Element<'a, Message, iced::Theme>> = recorder
+            .on_switch_camera
+            .map(|msg| button(text("Switch Cam").size(12)).on_press(msg).into());
 
         // Control row
         let mut controls: Vec<iced::Element<'a, Message, iced::Theme>> = Vec::new();
@@ -1129,8 +1190,7 @@ where
     }
 }
 
-impl<'a, Message> From<VideoControls<'a, Message>>
-    for iced::Element<'a, Message, iced::Theme>
+impl<'a, Message> From<VideoControls<'a, Message>> for iced::Element<'a, Message, iced::Theme>
 where
     Message: Clone + 'a,
 {

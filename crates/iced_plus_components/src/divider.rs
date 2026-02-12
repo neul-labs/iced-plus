@@ -89,12 +89,14 @@ where
 {
     fn size(&self) -> Size<Length> {
         match self.orientation {
-            DividerOrientation::Horizontal => {
-                Size::new(Length::Fill, Length::Fixed(self.thickness + self.spacing * 2.0))
-            }
-            DividerOrientation::Vertical => {
-                Size::new(Length::Fixed(self.thickness + self.spacing * 2.0), Length::Fill)
-            }
+            DividerOrientation::Horizontal => Size::new(
+                Length::Fill,
+                Length::Fixed(self.thickness + self.spacing * 2.0),
+            ),
+            DividerOrientation::Vertical => Size::new(
+                Length::Fixed(self.thickness + self.spacing * 2.0),
+                Length::Fill,
+            ),
         }
     }
 
@@ -114,14 +116,12 @@ where
 
     fn layout(&self, _tree: &mut Tree, _renderer: &Renderer, limits: &Limits) -> Node {
         let size = match self.orientation {
-            DividerOrientation::Horizontal => Size::new(
-                limits.max().width,
-                self.thickness + self.spacing * 2.0,
-            ),
-            DividerOrientation::Vertical => Size::new(
-                self.thickness + self.spacing * 2.0,
-                limits.max().height,
-            ),
+            DividerOrientation::Horizontal => {
+                Size::new(limits.max().width, self.thickness + self.spacing * 2.0)
+            }
+            DividerOrientation::Vertical => {
+                Size::new(self.thickness + self.spacing * 2.0, limits.max().height)
+            }
         };
 
         Node::new(limits.resolve(Length::Shrink, Length::Shrink, size))

@@ -209,8 +209,7 @@ where
         let mut tree_iter = tree.children.iter_mut();
 
         // Content
-        if let (Some(content_layout), Some(content_tree)) =
-            (children_iter.next(), tree_iter.next())
+        if let (Some(content_layout), Some(content_tree)) = (children_iter.next(), tree_iter.next())
         {
             self.content
                 .as_widget()
@@ -257,8 +256,7 @@ where
         let mut status = event::Status::Ignored;
 
         // Content
-        if let (Some(content_layout), Some(content_tree)) =
-            (children_iter.next(), tree_iter.next())
+        if let (Some(content_layout), Some(content_tree)) = (children_iter.next(), tree_iter.next())
         {
             status = status.merge(self.content.as_widget_mut().on_event(
                 content_tree,
@@ -325,8 +323,7 @@ where
         // Check each child for mouse interaction
         let mut interaction = mouse::Interaction::default();
 
-        if let (Some(content_layout), Some(content_tree)) =
-            (children_iter.next(), tree_iter.next())
+        if let (Some(content_layout), Some(content_tree)) = (children_iter.next(), tree_iter.next())
         {
             interaction = self.content.as_widget().mouse_interaction(
                 content_tree,
@@ -395,8 +392,7 @@ where
         // But for this shell, the order doesn't matter as they don't overlap
 
         // Content
-        if let (Some(content_layout), Some(content_tree)) =
-            (children_iter.next(), tree_iter.next())
+        if let (Some(content_layout), Some(content_tree)) = (children_iter.next(), tree_iter.next())
         {
             self.content.as_widget().draw(
                 content_tree,

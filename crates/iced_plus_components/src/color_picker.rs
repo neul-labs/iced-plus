@@ -12,8 +12,8 @@
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path};
 use iced::widget::{column, container, row, text, text_input, Space};
 use iced::{
-    alignment, mouse, Background, Border, Color, Element, Length, Point, Rectangle, Renderer,
-    Size, Theme,
+    alignment, mouse, Background, Border, Color, Element, Length, Point, Rectangle, Renderer, Size,
+    Theme,
 };
 
 /// HSL color representation.
@@ -93,11 +93,7 @@ impl Hsl {
             (r - g) / d + 4.0
         };
 
-        Self {
-            h: h * 60.0,
-            s,
-            l,
-        }
+        Self { h: h * 60.0, s, l }
     }
 }
 
@@ -446,11 +442,7 @@ where
         row![
             Element::from(preview),
             Space::with_width(8),
-            column![
-                text("Hex").size(12),
-                hex_field,
-            ]
-            .spacing(4),
+            column![text("Hex").size(12), hex_field,].spacing(4),
         ]
         .align_y(alignment::Vertical::Center),
     ]
@@ -489,8 +481,8 @@ where
         .enumerate()
         .map(|(i, &color)| {
             let is_selected = selected == Some(i);
-            let swatch_content = container(Space::new(28.0, 28.0))
-                .style(move |_theme| container::Style {
+            let swatch_content =
+                container(Space::new(28.0, 28.0)).style(move |_theme| container::Style {
                     background: Some(Background::Color(color)),
                     border: Border {
                         color: if is_selected {

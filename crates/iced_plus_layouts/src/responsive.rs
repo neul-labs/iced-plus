@@ -154,8 +154,19 @@ impl<T: Clone> Responsive<T> {
     #[must_use]
     pub fn get(&self, tier: BreakpointTier) -> &T {
         match tier {
-            BreakpointTier::XL => self.xl.as_ref().or(self.lg.as_ref()).or(self.md.as_ref()).or(self.sm.as_ref()).unwrap_or(&self.xs),
-            BreakpointTier::LG => self.lg.as_ref().or(self.md.as_ref()).or(self.sm.as_ref()).unwrap_or(&self.xs),
+            BreakpointTier::XL => self
+                .xl
+                .as_ref()
+                .or(self.lg.as_ref())
+                .or(self.md.as_ref())
+                .or(self.sm.as_ref())
+                .unwrap_or(&self.xs),
+            BreakpointTier::LG => self
+                .lg
+                .as_ref()
+                .or(self.md.as_ref())
+                .or(self.sm.as_ref())
+                .unwrap_or(&self.xs),
             BreakpointTier::MD => self.md.as_ref().or(self.sm.as_ref()).unwrap_or(&self.xs),
             BreakpointTier::SM => self.sm.as_ref().unwrap_or(&self.xs),
             BreakpointTier::XS => &self.xs,
@@ -490,7 +501,9 @@ where
                 .iter()
                 .zip(tree.children.iter_mut())
                 .map(|(child, child_tree)| {
-                    let node = child.as_widget().layout(child_tree, renderer, &child_limits);
+                    let node = child
+                        .as_widget()
+                        .layout(child_tree, renderer, &child_limits);
                     let size = node.size();
                     let node = node.move_to(iced::Point::new(0.0, y));
                     y += size.height + self.spacing;
@@ -524,7 +537,9 @@ where
                 .iter()
                 .zip(tree.children.iter_mut())
                 .map(|(child, child_tree)| {
-                    let node = child.as_widget().layout(child_tree, renderer, &child_limits);
+                    let node = child
+                        .as_widget()
+                        .layout(child_tree, renderer, &child_limits);
                     let size = node.size();
                     let node = node.move_to(iced::Point::new(x, 0.0));
                     x += child_width + self.spacing;
@@ -606,9 +621,13 @@ where
             .zip(tree.children.iter())
             .zip(layout.children())
         {
-            let interaction = child
-                .as_widget()
-                .mouse_interaction(child_tree, child_layout, cursor, viewport, renderer);
+            let interaction = child.as_widget().mouse_interaction(
+                child_tree,
+                child_layout,
+                cursor,
+                viewport,
+                renderer,
+            );
 
             if interaction != mouse::Interaction::default() {
                 return interaction;
@@ -634,9 +653,15 @@ where
             .zip(tree.children.iter())
             .zip(layout.children())
         {
-            child
-                .as_widget()
-                .draw(child_tree, renderer, theme, style, child_layout, cursor, viewport);
+            child.as_widget().draw(
+                child_tree,
+                renderer,
+                theme,
+                style,
+                child_layout,
+                cursor,
+                viewport,
+            );
         }
     }
 }

@@ -53,21 +53,18 @@ where
     stack![
         base.into(),
         opaque(
-            mouse_area(
-                center(opaque(content))
-                    .style(move |_theme| {
-                        container::Style {
-                            background: Some(
-                                Color {
-                                    a: opacity,
-                                    ..Color::BLACK
-                                }
-                                .into(),
-                            ),
-                            ..container::Style::default()
+            mouse_area(center(opaque(content)).style(move |_theme| {
+                container::Style {
+                    background: Some(
+                        Color {
+                            a: opacity,
+                            ..Color::BLACK
                         }
-                    })
-            )
+                        .into(),
+                    ),
+                    ..container::Style::default()
+                }
+            }))
             .on_press(on_blur)
         )
     ]

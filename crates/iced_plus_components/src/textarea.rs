@@ -123,14 +123,12 @@ impl<'a, Message: Clone + 'a> From<TextArea<'a, Message>> for Element<'a, Messag
                         palette.background.base.color,
                         palette.background.strong.color,
                     ),
-                    text_editor::Status::Hovered => (
-                        palette.background.base.color,
-                        palette.primary.weak.color,
-                    ),
-                    text_editor::Status::Focused => (
-                        palette.background.base.color,
-                        palette.primary.base.color,
-                    ),
+                    text_editor::Status::Hovered => {
+                        (palette.background.base.color, palette.primary.weak.color)
+                    }
+                    text_editor::Status::Focused => {
+                        (palette.background.base.color, palette.primary.base.color)
+                    }
                     text_editor::Status::Disabled => (
                         palette.background.weak.color,
                         palette.background.strong.color,
@@ -234,11 +232,12 @@ impl<'a, Message: Clone + 'a> From<SimpleTextArea<'a, Message>> for Element<'a, 
 
         // Wrap in scrollable container for multi-line feel
         container(
-            scrollable(
-                container(input)
-                    .width(Length::Fill)
-                    .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 0.0 }),
-            )
+            scrollable(container(input).width(Length::Fill).padding(Padding {
+                top: 0.0,
+                right: 4.0,
+                bottom: 0.0,
+                left: 0.0,
+            }))
             .height(textarea.height),
         )
         .style(|theme: &Theme| {

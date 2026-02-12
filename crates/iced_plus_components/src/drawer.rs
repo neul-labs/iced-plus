@@ -126,11 +126,10 @@ where
 
         // Layout drawer
         let drawer_limits = Limits::new(Size::ZERO, Size::new(self.width, bounds.height));
-        let drawer_node = self.drawer.as_widget().layout(
-            &mut tree.children[1],
-            renderer,
-            &drawer_limits,
-        );
+        let drawer_node =
+            self.drawer
+                .as_widget()
+                .layout(&mut tree.children[1], renderer, &drawer_limits);
 
         // Position drawer based on side
         let drawer_x = match self.position {
@@ -158,9 +157,12 @@ where
         }
 
         if let Some(drawer_layout) = children.next() {
-            self.drawer
-                .as_widget()
-                .operate(&mut tree.children[1], drawer_layout, renderer, operation);
+            self.drawer.as_widget().operate(
+                &mut tree.children[1],
+                drawer_layout,
+                renderer,
+                operation,
+            );
         }
     }
 

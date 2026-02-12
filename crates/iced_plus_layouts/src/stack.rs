@@ -192,7 +192,9 @@ where
                 layout::Limits::new(Size::ZERO, Size::new(limits.max().width, f32::INFINITY))
             };
 
-            let node = child.as_widget().layout(&mut tree.children[i], renderer, &child_limits);
+            let node = child
+                .as_widget()
+                .layout(&mut tree.children[i], renderer, &child_limits);
             let size = node.size();
 
             if is_horizontal {
@@ -228,12 +230,18 @@ where
 
         for node in &mut nodes {
             let size = node.size();
-            let cross_size = if is_horizontal { size.height } else { size.width };
+            let cross_size = if is_horizontal {
+                size.height
+            } else {
+                size.width
+            };
 
             // Calculate cross-axis offset based on alignment
             let cross_offset = match self.align.into() {
                 iced::alignment::Alignment::Start => padding,
-                iced::alignment::Alignment::Center => padding + (cross_available - cross_size) / 2.0,
+                iced::alignment::Alignment::Center => {
+                    padding + (cross_available - cross_size) / 2.0
+                }
                 iced::alignment::Alignment::End => padding + cross_available - cross_size,
             };
 
@@ -245,7 +253,11 @@ where
 
             node.move_to_mut(position);
 
-            main_offset += if is_horizontal { size.width } else { size.height } + self.spacing;
+            main_offset += if is_horizontal {
+                size.width
+            } else {
+                size.height
+            } + self.spacing;
         }
 
         layout::Node::with_children(total_size, nodes)
@@ -330,10 +342,9 @@ where
             .zip(&tree.children)
             .zip(layout.children())
         {
-            let interaction =
-                child
-                    .as_widget()
-                    .mouse_interaction(state, layout, cursor, viewport, renderer);
+            let interaction = child
+                .as_widget()
+                .mouse_interaction(state, layout, cursor, viewport, renderer);
 
             if interaction != iced::mouse::Interaction::default() {
                 return interaction;

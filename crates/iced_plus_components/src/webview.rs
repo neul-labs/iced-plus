@@ -295,8 +295,7 @@ where
     }
 }
 
-impl<'a, Message> From<BrowserBar<'a, Message>>
-    for iced::Element<'a, Message, iced::Theme>
+impl<'a, Message> From<BrowserBar<'a, Message>> for iced::Element<'a, Message, iced::Theme>
 where
     Message: Clone + 'a,
 {
@@ -341,8 +340,7 @@ where
         };
 
         let url_input: iced::Element<'a, Message, iced::Theme> = {
-            let input = text_input("Enter URL...", &bar.state.url)
-                .width(Length::Fill);
+            let input = text_input("Enter URL...", &bar.state.url).width(Length::Fill);
 
             if let Some(on_navigate) = bar.on_navigate {
                 input.on_submit(on_navigate(bar.state.url.clone())).into()

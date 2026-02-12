@@ -7,8 +7,7 @@
 pub mod backend {
     use std::sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc,
-        Arc,
+        mpsc, Arc,
     };
     use std::thread::{self, JoinHandle};
 
@@ -61,8 +60,7 @@ pub mod backend {
             let handle = thread::Builder::new()
                 .name("iced-plus-webview".to_string())
                 .spawn(move || {
-                    let event_loop =
-                        EventLoopBuilder::<WebViewEvent>::with_user_event().build();
+                    let event_loop = EventLoopBuilder::<WebViewEvent>::with_user_event().build();
 
                     let window = match WindowBuilder::new()
                         .with_title("iced-plus WebView")
@@ -82,8 +80,7 @@ pub mod backend {
                     let webview = match builder.build() {
                         Ok(webview) => webview,
                         Err(err) => {
-                            let _ = proxy_tx
-                                .send(Err(format!("Failed to build webview: {err}")));
+                            let _ = proxy_tx.send(Err(format!("Failed to build webview: {err}")));
                             return;
                         }
                     };

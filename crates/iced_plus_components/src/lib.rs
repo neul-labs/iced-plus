@@ -72,8 +72,8 @@ pub mod card;
 pub mod checkbox;
 pub mod color_picker;
 pub mod divider;
-pub mod icons;
 pub mod drawer;
+pub mod icons;
 pub mod image;
 pub mod input;
 pub mod media;
@@ -81,8 +81,9 @@ pub mod menu;
 pub mod navbar;
 pub mod progress;
 pub mod radio;
-pub mod select;
+pub mod rich_text;
 pub mod scrollable;
+pub mod select;
 pub mod skeleton;
 pub mod slider;
 pub mod spinner;
@@ -91,7 +92,6 @@ pub mod tabs;
 pub mod text;
 pub mod textarea;
 pub mod toast;
-pub mod rich_text;
 pub mod tooltip;
 pub mod webview;
 
@@ -118,8 +118,10 @@ pub use media::{
     VideoControls, VideoRecorder,
 };
 pub use menu::{Menu, MenuBar, MenuItem};
+pub use navbar::{AppBar, NavItem, SideNav};
 pub use progress::{Progress, ProgressVariant};
 pub use radio::{Radio, RadioGroup};
+pub use rich_text::{formatting, FormattingState, RichTextAction, RichTextContent, RichTextEditor};
 pub use scrollable::{
     minimal_scrollable, position as scroll_position, styled_scrollable, themed_scrollable,
     AnchorSection, ScrollDirection, ScrollableBuilder, ScrollableConfig, SnapAlignment,
@@ -128,7 +130,7 @@ pub use select::Select;
 pub use skeleton::{Skeleton, SkeletonShape};
 pub use slider::{Slider, VerticalSlider};
 pub use spinner::{
-    easing, calculate_progress, spinner_subscription, spinner_subscription_with_duration,
+    calculate_progress, easing, spinner_subscription, spinner_subscription_with_duration,
     CircularSpinner, DotsSpinner, LinearSpinner, PulseSpinner, SpinnerMessage,
     DEFAULT_CYCLE_DURATION, DEFAULT_FRAME_DURATION,
 };
@@ -136,8 +138,8 @@ pub use switch::Switch;
 pub use tabs::{Tab, TabWidth, Tabs};
 pub use text::{Heading, HeadingLevel, Text, TextStyle};
 pub use textarea::{SimpleTextArea, TextArea, TextAreaContent};
-pub use toast::{toast_container, toast_view, toasts, Toast, ToastManager, ToastPosition, ToastVariant};
-pub use rich_text::{FormattingState, RichTextAction, RichTextContent, RichTextEditor, formatting};
+pub use toast::{
+    toast_container, toast_view, toasts, Toast, ToastManager, ToastPosition, ToastVariant,
+};
 pub use tooltip::{Tooltip, TooltipPosition};
-pub use navbar::{AppBar, NavItem, SideNav};
 pub use webview::{BrowserBar, WebViewCommand, WebViewConfig, WebViewState};
